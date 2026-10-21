@@ -491,6 +491,33 @@ describe('matching', () => {
     ).toBe(false);
   });
 
+  // So paths must only be split on `\` on Windows
+  it.skipIf(process.platform === 'win32')(
+    'a backslash in a name is not a separator outside of Windows, like in git',
+    () => {
+      const fixture = createFixture({
+        // An escaped backslash
+        '.gitignore': `${String.raw`a\\b`}\n`,
+        [String.raw`x\y`]: {'.gitignore': 'z\n'},
+      });
+      const gitignore = readGitignoreSync({cwd: fixture.root, env: fixture.env});
+      const paths = [String.raw`a\b`, 'a/b', String.raw`x\y/z`, 'x/y/z'];
+
+      expect(paths.map((value) => gitignore.isIgnored(value))).toStrictEqual([
+        true,
+        false,
+        true,
+        false,
+      ]);
+      expect(gitCheckIgnore(fixture, paths).map((result) => result.ignored)).toStrictEqual([
+        true,
+        false,
+        true,
+        false,
+      ]);
+    },
+  );
+
   it('matches bytes, like git', () => {
     const fixture = createFixture({'.gitignore': '?.txt\nd??/\n[!a]\n'});
     const gitignore = readGitignoreSync({cwd: fixture.root, env: fixture.env});
