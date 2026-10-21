@@ -1,0 +1,29 @@
+{
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "yaml",
+    "toml",
+    "json",
+    "jsonc",
+    "json5",
+    "markdown",
+  ],
+
+  "[javascript][typescript][typescriptreact][vue][css][scss][postcss]": {
+    // Note: do NOT set `editor.formatOnSaveMode` to any value with `modifications` -
+    // may incorrectly run the formatter with `prettier-ignore`/`oxfmt-ignore` directives
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "oxc.oxc-vscode",
+  },
+
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  // The same TypeScript 7 as the `ts` script
+  "js/ts.experimental.useTsgo": true,
+  // Same as `header-max-length` in the commitlint config
+  "git.inputValidationSubjectLength": 120,
+
+  "cSpell.enabled": true,
+}

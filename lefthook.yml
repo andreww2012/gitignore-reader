@@ -1,0 +1,33 @@
+pre-push:
+  parallel: true
+  commands:
+    eslint:
+      run: pnpm exec eslint --no-warn-ignored {push_files}
+    oxfmt:
+      run: pnpm exec oxfmt --check --no-error-on-unmatched-pattern {push_files}
+    cspell:
+      run: pnpm exec cspell --exclude '**/.*' --no-must-find-files {push_files}
+    knip:
+      run: pnpm knip
+    types:
+      run: pnpm ts
+
+post-merge: &install-on-lockfile-change
+  commands:
+    install:
+      glob: '{pnpm-lock.yaml,pnpm-workspace.yaml,patches/*}'
+      run: pnpm install
+post-checkout: *install-on-lockfile-change
+
+pre-commit:
+  parallel: true
+  skip: [merge, rebase]
+  commands:
+    oxfmt:
+      run: pnpm exec oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {0}

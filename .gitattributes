@@ -1,0 +1,2 @@
+# Same line endings on every OS, as in `.editorconfig`, so Windows checkouts don't fail the formatting check
+* text=auto eol=lf

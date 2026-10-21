@@ -1,0 +1,29 @@
+saveExact: true
+autoDedupe: true
+saveTypes: true
+lockfile:
+  # Records `autoDedupe`, so that installs don't resolve the lockfile again
+  includeResolutionSettings: true
+
+minimumReleaseAge: 960 # 16 hours in minutes
+minimumReleaseAgeExclude: []
+minimumReleaseAgeExcludePrune: true
+
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200 # 30 days in minutes
+trustPolicyExclude: # []
+  # Published by hand after its release workflow failed. Same code as v2.2.1
+  - lefthook@2.2.2
+
+audit:
+  ignore: []
+  ignorePrune: true
+
+allowBuilds:
+  lefthook@2.2.2: true
+
+  esbuild: false
+  unrs-resolver: false
+
+dedupePeers: true
+strictPeerDependencies: false

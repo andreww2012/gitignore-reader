@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "andreww2012/gitignore-reader",
+      "disableThanks": true
+    }
+  ],
+  "access": "public",
+  "baseBranch": "origin/main",
+  "updateInternalDependencies": "patch"
+}

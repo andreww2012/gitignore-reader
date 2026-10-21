@@ -1,0 +1,142 @@
+name: Check code (+ Publish)
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write # Required for Trusted Publishing
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  install:
+    name: Install dependencies
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+
+  knip:
+    name: Knip
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm knip
+
+  spellcheck:
+    name: Spellcheck (cspell)
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm check:spelling
+
+  formatting:
+    name: Formatting check (oxfmt)
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm check:format
+
+  typecheck:
+    name: Typecheck (tsgo)
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm ts
+
+  eslint:
+    name: ESLint
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm eslint
+
+  test:
+    name: Test (Node ${{ matrix.node-version }}, ${{ matrix.os }})
+    needs: install
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+        # Paths, symlinks and case sensitivity differ between them
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: pnpm test:vitest
+
+  test-templates:
+    name: Test on github/gitignore templates
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm test:templates
+
+  build:
+    name: Build (tsdown) & lint package (attw, publint)
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare
+      - run: pnpm check:package
+
+  release-main:
+    name: Create release PR _OR_ Publish on merge
+    needs:
+      - knip
+      - spellcheck
+      - formatting
+      - typecheck
+      - eslint
+      - test
+      - test-templates
+      - build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/prepare
+      # Based on https://github.com/changesets/action/issues/303#issuecomment-1888167265
+      - name: Capture new release version
+        env:
+          # For the changelog generator, the action passes it on its own
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Exits with 1 if there are no unreleased changesets,
+          # in which case the version stays the same
+          pnpm changeset version || true
+          echo "NEW_VERSION=$(jq -r '.version' package.json)" >> $GITHUB_ENV
+          git restore .
+          # `changeset version` may also create new files (like `CHANGELOG.md` on the first release)
+          git clean -fdq
+      - name: Create release / Publish
+        id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          publish-script: pnpm release
+          pr-title: 'chore: release v${{ env.NEW_VERSION }}'
+          commit-message: 'chore: release v${{ env.NEW_VERSION }}'

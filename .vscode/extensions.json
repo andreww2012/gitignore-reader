@@ -1,0 +1,12 @@
+{
+  // cspell:disable
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "oxc.oxc-vscode",
+    "streetsidesoftware.code-spell-checker",
+    "webpro.vscode-knip",
+    "vitest.explorer",
+    // "bradlc.vscode-tailwindcss",
+  ],
+  // cspell:enable
+}
