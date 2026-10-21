@@ -14,6 +14,20 @@ const NON_ASCII_REGEX = /\P{ASCII}/u;
 // They match a single byte in git, but a whole character in ESLint
 const BYTE_WILDCARD_REGEX = /[?[]/;
 
+/** Symlinks to files need extra privileges on Windows, unlike junctions to directories */
+export const symlinkOrSkip = (
+  target: string,
+  link: string,
+  context: {skip: (note: string) => void},
+) => {
+  try {
+    const isDirectory = fs.statSync(target, {throwIfNoEntry: false})?.isDirectory();
+    fs.symlinkSync(target, link, isDirectory ? 'junction' : 'file');
+  } catch {
+    context.skip('Symlinks are not available');
+  }
+};
+
 export interface FileTree {
   [name: string]: FileTree | string;
 }
@@ -72,6 +86,10 @@ export const createFixture = (tree: FileTree = {}, {gitInit = true} = {}): Fixtu
       cwd,
       env: {...gitEnv, PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT},
       encoding: 'utf8',
+      // `check-ignore` prints a lot for thousands of paths
+      maxBuffer: Number.POSITIVE_INFINITY,
+      // Warnings would clutter the output, the error has them anyway
+      stdio: 'pipe',
       ...(input != null && {input}),
     });
   if (gitInit) {
@@ -108,7 +126,7 @@ interface GitCheckResult {
 }
 
 /** Runs `git check-ignore --verbose --non-matching` for the paths, relative to the repository */
-const gitCheckIgnore = (fixture: Fixture, paths: readonly string[]): GitCheckResult[] => {
+export const gitCheckIgnore = (fixture: Fixture, paths: readonly string[]): GitCheckResult[] => {
   if (paths.length === 0) {
     return [];
   }

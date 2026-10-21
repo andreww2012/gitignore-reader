@@ -2,17 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {type ReadGitignoreOptions, readGitignore, readGitignoreSync} from '../src/index.ts';
-import {type Fixture, createFixture} from './utils.ts';
-
-/** Symlinks to files need extra privileges on Windows, unlike junctions to directories */
-const symlinkOrSkip = (target: string, link: string, context: {skip: (note: string) => void}) => {
-  try {
-    const isDirectory = fs.statSync(target, {throwIfNoEntry: false})?.isDirectory();
-    fs.symlinkSync(target, link, isDirectory ? 'junction' : 'file');
-  } catch {
-    context.skip('Symlinks are not available');
-  }
-};
+import {type Fixture, createFixture, gitCheckIgnore, symlinkOrSkip} from './utils.ts';
 
 describe('sources', () => {
   it('reads every source in the order of precedence', async () => {
@@ -140,13 +130,20 @@ describe('sources', () => {
     expect(gitignore.isIgnored('keep.txt')).toBe(false);
   });
 
-  it("doesn't follow symlinked ignore files, like git", (context) => {
+  it("doesn't follow symlinked ignore files, like git", async (context) => {
     const fixture = createFixture({'real-ignore': 'ignored\n', sub: {}});
     const target = path.join(fixture.root, 'real-ignore');
     symlinkOrSkip(target, path.join(fixture.root, '.gitignore'), context);
     symlinkOrSkip(target, path.join(fixture.root, 'sub', '.gitignore'), context);
 
     expect(readGitignoreSync({cwd: fixture.root, env: fixture.env}).sources).toStrictEqual([]);
+    await expect(readGitignore({cwd: fixture.root, env: fixture.env})).resolves.toMatchObject({
+      sources: [],
+    });
+    expect(gitCheckIgnore(fixture, ['ignored', 'sub/ignored'])).toStrictEqual([
+      {ignored: false},
+      {ignored: false},
+    ]);
   });
 
   it('`infoExclude: false` and `excludesFile: false`', () => {

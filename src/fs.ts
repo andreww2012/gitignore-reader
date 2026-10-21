@@ -14,12 +14,19 @@ interface FileToRead {
   followSymlinks?: boolean;
 }
 
-// Windows has no such flag, but symlinks are rare there anyway
+// Windows has no flag to refuse opening a symlink, so there git checks for one first, and so does
+// this code
+const HAS_NO_FOLLOW_FLAG = 'O_NOFOLLOW' in fs.constants;
 const READ_NO_FOLLOW_FLAG = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
 
 const readFileSync = ({path, followSymlinks = true}: FileToRead) => {
   if (followSymlinks) {
     return fs.readFileSync(path, 'utf8');
+  }
+  if (!HAS_NO_FOLLOW_FLAG) {
+    return fs.lstatSync(path, {throwIfNoEntry: false})?.isSymbolicLink()
+      ? undefined
+      : fs.readFileSync(path, 'utf8');
   }
   const fileDescriptor = fs.openSync(path, READ_NO_FOLLOW_FLAG);
   try {
@@ -29,8 +36,15 @@ const readFileSync = ({path, followSymlinks = true}: FileToRead) => {
   }
 };
 
-const readFileAsync = ({path, followSymlinks = true}: FileToRead) =>
-  fsPromises.readFile(path, {encoding: 'utf8', flag: followSymlinks ? 'r' : READ_NO_FOLLOW_FLAG});
+const readFileAsync = async ({path, followSymlinks = true}: FileToRead) => {
+  if (!followSymlinks && !HAS_NO_FOLLOW_FLAG && (await fsPromises.lstat(path)).isSymbolicLink()) {
+    return undefined;
+  }
+  return await fsPromises.readFile(path, {
+    encoding: 'utf8',
+    flag: followSymlinks ? 'r' : READ_NO_FOLLOW_FLAG,
+  });
+};
 
 const getEntryType = (entry: fs.Dirent | fs.Stats) => {
   if (entry.isDirectory()) {
