@@ -359,6 +359,42 @@ describe('repositories', () => {
   });
 });
 
+describe('cwd', () => {
+  it('must be an existing directory', async () => {
+    const fixture = createFixture({file: ''}, {gitInit: false});
+    const missing = path.join(fixture.root, 'missing');
+
+    expect(() => readGitignoreSync({cwd: missing, env: fixture.env})).toThrow(
+      'must be an existing directory',
+    );
+    expect(() =>
+      readGitignoreSync({cwd: path.join(fixture.root, 'file'), env: fixture.env}),
+    ).toThrow('must be an existing directory');
+    await expect(readGitignore({cwd: missing, env: fixture.env})).rejects.toThrow(
+      'must be an existing directory',
+    );
+  });
+
+  it('`allowMissingCwd` reads the rules as if it were an empty directory', async () => {
+    const fixture = createFixture({'.gitignore': 'x\n', file: ''});
+    fixture.writeInfoExclude('y\n');
+    const options = {
+      cwd: path.join(fixture.root, 'missing', 'deeper'),
+      env: fixture.env,
+      allowMissingCwd: true,
+    };
+    const gitignore = readGitignoreSync(options);
+
+    expect(gitignore.repository?.workTree).toBe(fixture.root);
+    expect(gitignore.toEslintIgnores()).toStrictEqual(['**/y', '**/x']);
+    expect(gitignore.isIgnored('x')).toBe(true);
+    await expect(readGitignore(options)).resolves.toMatchObject({sources: gitignore.sources});
+    expect(
+      readGitignoreSync({...options, cwd: path.join(fixture.root, 'file')}).toEslintIgnores(),
+    ).toStrictEqual(['**/y', '**/x']);
+  });
+});
+
 describe('outside of a repository', () => {
   it('reads ignore files up to `root`, but not the git-only sources', async () => {
     const fixture = createFixture(
@@ -385,6 +421,21 @@ describe('outside of a repository', () => {
 });
 
 describe('root option inside a repository', () => {
+  it('is relative to `cwd`, like the other paths in the options', () => {
+    const fixture = createFixture({
+      '.gitignore': 'top\n',
+      packages: {'.gitignore': 'middle\n', a: {'.gitignore': 'own\n'}},
+    });
+
+    expect(
+      readGitignoreSync({
+        cwd: path.join(fixture.root, 'packages', 'a'),
+        env: fixture.env,
+        root: '..',
+      }).toEslintIgnores(),
+    ).toStrictEqual(['**/middle', '**/own']);
+  });
+
   it('narrows the search, but never goes above the working tree', () => {
     const fixture = createFixture({
       '.gitignore': 'top\n',

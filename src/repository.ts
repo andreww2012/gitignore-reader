@@ -34,18 +34,25 @@ const trimTrailingLineBreaks = (value: string) => {
 // Finds the git repository the directory belongs to, the way git does: by looking for a `.git`
 // directory or file in it and its parents.
 // `GIT_DIR` and other environment variables are not taken into account.
+// The directory doesn't have to exist, but the result tells if it does.
 // Also returns the content of `HEAD` and the real path of the git directory
 export function* discoverRepository(directory: string): QuansyncGenerator<{
+  isDirectory: boolean;
   repository?: GitRepository;
   head?: string;
   realGitDirectory?: string;
 }> {
   const ancestors = getAncestors(directory);
-  const types = yield* getEntryTypes(ancestors.map((ancestor) => path.join(ancestor, '.git')));
+  // The directory itself is checked together with the `.git` entries
+  const [directoryType, ...types] = yield* getEntryTypes([
+    directory,
+    ...ancestors.map((ancestor) => path.join(ancestor, '.git')),
+  ]);
+  const isDirectory = directoryType === 'directory';
   const index = types.findIndex((type) => type === 'directory' || type === 'file');
   const workTree = ancestors[index];
   if (workTree == null) {
-    return {};
+    return {isDirectory};
   }
   let gitDirectory: string | undefined = path.join(workTree, '.git');
   if (types[index] === 'file') {
@@ -56,7 +63,7 @@ export function* discoverRepository(directory: string): QuansyncGenerator<{
     gitDirectory = target ? path.resolve(workTree, target) : undefined;
   }
   if (gitDirectory == null) {
-    return {repository: {workTree}};
+    return {isDirectory, repository: {workTree}};
   }
   const [[commonDirectoryTarget, head], [realGitDirectory]] = yield* readFilesAndGetRealPaths(
     [{path: path.join(gitDirectory, 'commondir')}, {path: path.join(gitDirectory, 'HEAD')}],
@@ -65,6 +72,7 @@ export function* discoverRepository(directory: string): QuansyncGenerator<{
   const commonDirectory =
     commonDirectoryTarget == null ? undefined : trimTrailingLineBreaks(commonDirectoryTarget);
   return {
+    isDirectory,
     repository: {
       workTree,
       gitDirectory,

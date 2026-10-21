@@ -107,20 +107,23 @@ Outside of a git repository, only `.gitignore` files are read: from `root` (the 
 
 ## Options
 
-| Option                       | Default           | Description                                                                                          |
-| ---------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `cwd`                        | `process.cwd()`   | The directory to read the rules for. Relative paths and ESLint patterns are relative to it.          |
-| `root`                       | The repository    | The topmost directory to read ignore files in. Can't be above the root of the repository.            |
-| `sources.excludesFile`       | `true`            | The global ignore file: `true` finds it like git does, a path sets it, `false` turns it off.         |
-| `sources.infoExclude`        | `true`            | Whether to read `$GIT_DIR/info/exclude`.                                                             |
-| `sources.fileNames`          | `['.gitignore']`  | Names of the ignore files, like `['.gitignore', '.prettierignore']`.                                 |
-| `sources.files`              | `[]`              | Paths of more ignore files, like `['.eslintignore']`, read even in directories that aren't searched. |
-| `sources.nested`             | `true`            | Whether to read ignore files in the subdirectories of `cwd`.                                         |
-| `sources.skipDirectories`    | `[]`              | Directory names not to search for ignore files in, like `['node_modules']`. Git does search them.    |
-| `sources.submodules`         | `true`            | Whether to ignore submodules.                                                                        |
-| `sources.nestedRepositories` | `true`            | Whether to ignore nested repositories.                                                               |
-| `ignoreCase`                 | `core.ignoreCase` | Whether to match case-insensitively. Outside of a git repository, it's off by default.               |
-| `env`                        | `process.env`     | Environment variables, such as `HOME` and `GIT_CONFIG_SYSTEM`.                                       |
+Relative paths in the options are resolved against `cwd`, and `cwd` itself against the current working directory.
+
+| Option                       | Default           | Description                                                                                           |
+| ---------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `cwd`                        | `process.cwd()`   | The directory to read the rules for. Paths and ESLint patterns are relative to it.                    |
+| `allowMissingCwd`            | `false`           | Whether `cwd` may be missing. Otherwise, a missing `cwd` throws, so that a typo doesn't go unnoticed. |
+| `root`                       | The repository    | The topmost directory to read ignore files in. Can't be above the root of the repository.             |
+| `sources.excludesFile`       | `true`            | The global ignore file: `true` finds it like git does, a path sets it, `false` turns it off.          |
+| `sources.infoExclude`        | `true`            | Whether to read `$GIT_DIR/info/exclude`.                                                              |
+| `sources.fileNames`          | `['.gitignore']`  | Names of the ignore files, like `['.gitignore', '.prettierignore']`.                                  |
+| `sources.files`              | `[]`              | Paths of more ignore files, like `['.eslintignore']`, read even in directories that aren't searched.  |
+| `sources.nested`             | `true`            | Whether to read ignore files in the subdirectories of `cwd`.                                          |
+| `sources.skipDirectories`    | `[]`              | Directory names not to search for ignore files in, like `['node_modules']`. Git does search them.     |
+| `sources.submodules`         | `true`            | Whether to ignore submodules.                                                                         |
+| `sources.nestedRepositories` | `true`            | Whether to ignore nested repositories.                                                                |
+| `ignoreCase`                 | `core.ignoreCase` | Whether to match case-insensitively. Outside of a git repository, it's off by default.                |
+| `env`                        | `process.env`     | Environment variables, such as `HOME` and `GIT_CONFIG_SYSTEM`.                                        |
 
 ## API
 

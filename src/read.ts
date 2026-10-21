@@ -24,7 +24,7 @@ export interface GitignoreSourcesOptions {
   /**
    * The global ignore file, git's `core.excludesFile` option.
    * `true` reads git config files to find it (falling back to `$XDG_CONFIG_HOME/git/ignore` or
-   * `~/.config/git/ignore`, like git), a string or a URL sets the path.
+   * `~/.config/git/ignore`, like git), a string or a URL sets the path (relative to `cwd`).
    * Only used inside a git repository
    * @default true
    */
@@ -88,20 +88,30 @@ export interface ReadGitignoreOptions {
   /**
    * The directory to read the rules for: ignore files are read in it, in its parents
    * (up to the root of the repository) and in its subdirectories.
-   * Relative paths given to the matcher are resolved against it, and `toEslintIgnores` returns
-   * patterns relative to it
+   * It must exist, unless `allowMissingCwd` is set.
+   * Relative paths in the other options and the ones given to the matcher are resolved against it,
+   * and `toEslintIgnores` returns patterns relative to it
    * @default process.cwd()
    */
   cwd?: string | URL;
 
   /**
-   * The topmost directory whose ignore files are read.
+   * The topmost directory whose ignore files are read, relative to `cwd`.
    * Inside a git repository, it can only narrow the search, since git never reads ignore files
    * above the working tree.
    * Outside a repository, it defaults to the filesystem root
    * @default the top-level directory of the working tree
    */
   root?: string | URL;
+
+  /**
+   * Whether `cwd` may be missing (or not a directory).
+   * Then the rules are read as if it were an empty directory: from its parents and the other
+   * sources.
+   * Otherwise, an error is thrown, so that a typo doesn't go unnoticed
+   * @default false
+   */
+  allowMissingCwd?: boolean;
 
   /** Which sources of the rules to read, and how */
   sources?: GitignoreSourcesOptions;
@@ -315,7 +325,13 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
     nestedRepositories = true,
   } = sources;
   const cwd = path.resolve(toPath(options.cwd || process.cwd()));
-  const {repository, head, realGitDirectory} = yield* discoverRepository(cwd);
+  const {isDirectory, repository, head, realGitDirectory} = yield* discoverRepository(cwd);
+  // Otherwise, a typo would make it quietly read the parents only
+  if (!isDirectory && !options.allowMissingCwd) {
+    throw new Error(
+      `\`cwd\` (${cwd}) must be an existing directory, unless \`allowMissingCwd\` is set`,
+    );
+  }
   const base = repository?.workTree || path.parse(cwd).root;
 
   let top = base;
