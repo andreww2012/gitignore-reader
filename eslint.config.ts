@@ -24,6 +24,8 @@ export default eslintConfig({
       // The test helpers in `test/utils.ts` may import dev dependencies too
       extraneousDependenciesCheck: (defaultIgnorePatterns) => ({
         checkDevDependencies: {ignorePatterns: [...defaultIgnorePatterns, 'test/**']},
+        // Bundled by tsdown
+        whitelist: ['@andreww2012/unutils'],
       }),
     },
     markdown: {

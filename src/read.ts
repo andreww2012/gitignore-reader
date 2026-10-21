@@ -1,5 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
+import {arrayTakeWhile} from '@andreww2012/unutils/array';
+import {keyedBy} from '@andreww2012/unutils/iterable';
 import {type QuansyncGenerator, quansync} from 'quansync';
 import {readDirectories, readFileGroups, readFiles} from './fs.ts';
 import {
@@ -180,19 +182,17 @@ const getConfigPaths = (repository: GitRepository, {env, home, xdgConfigHome}: G
 
 const getSubmodulePaths = (content: string) =>
   [
-    ...parseGitConfig(content)
-      .reduce((entries, entry) => {
-        if (
+    // The last path of a submodule wins
+    ...keyedBy(
+      parseGitConfig(content).filter(
+        (entry) =>
           entry.section === 'submodule' &&
           entry.subsection != null &&
           entry.key === 'path' &&
-          entry.value
-        ) {
-          entries.set(entry.subsection, entry);
-        }
-        return entries;
-      }, new Map<string, ConfigEntry>())
-      .values(),
+          entry.value,
+      ),
+      (entry) => entry.subsection,
+    ).values(),
   ].flatMap(({value = '', line}) => {
     const segments = toPosixPath(value).split('/');
     const submodulePath = segments
@@ -329,11 +329,9 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
     }
   }
 
-  const ancestors = getAncestors(cwd);
-  const aboveTopIndex = ancestors.findIndex((ancestor) => !isPathInside(ancestor, top));
   // From `top` down to `cwd`
-  const searchedAncestors = (
-    aboveTopIndex === -1 ? ancestors : ancestors.slice(0, aboveTopIndex)
+  const searchedAncestors = arrayTakeWhile(getAncestors(cwd), (ancestor) =>
+    isPathInside(ancestor, top),
   ).toReversed();
 
   const extraFilePaths = [...new Set(files.map((file) => path.resolve(cwd, toPath(file))))].filter(

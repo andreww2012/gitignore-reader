@@ -1,7 +1,7 @@
 import type {CSpellSettings} from 'cspell';
 
 const GLOBALLY_IGNORED_WORDS: Readonly<Record<string, string[]>> = {
-  names: ['andreww', 'quansync'],
+  names: ['andreww', 'quansync', 'unutils'],
   misc: ['knipignore', 'FEFF'],
   git: [
     'commondir',

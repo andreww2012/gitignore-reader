@@ -178,6 +178,9 @@ importers:
       '@andreww2012/npm-check-updates-config':
         specifier: 0.1.0
         version: 0.1.0(npm-check-updates@23.1.1)
+      '@andreww2012/unutils':
+        specifier: 0.2.0
+        version: 0.2.0
       '@antfu/ni':
         specifier: 30.6.0
         version: 30.6.0
@@ -2281,6 +2284,11 @@ packages:
 
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
+    peerDependencies:
+      ajv: ^8.0.0
+    peerDependenciesMeta:
+      ajv:
+        optional: true
 
   ajv@6.15.0:
     resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}

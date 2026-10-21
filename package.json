@@ -79,6 +79,7 @@
   },
   "devDependencies": {
     "@andreww2012/npm-check-updates-config": "0.1.0",
+    "@andreww2012/unutils": "0.2.0",
     "@antfu/ni": "30.6.0",
     "@arethetypeswrong/cli": "0.18.5",
     "@changesets/changelog-github": "1.0.1",
@@ -117,5 +118,8 @@
       "name": "pnpm",
       "version": "12.15.0"
     }
+  },
+  "inlinedDependencies": {
+    "@andreww2012/unutils": "0.2.0"
   }
 }

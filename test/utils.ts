@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {isDeepStrictEqual} from 'node:util';
+import {arrayChunks} from '@andreww2012/unutils/array';
 import {ESLint} from 'eslint';
 import {type Gitignore, readGitignoreSync} from '../src/index.ts';
 
@@ -142,9 +143,10 @@ export const gitCheckIgnore = (fixture: Fixture, paths: readonly string[]): GitC
     }
     output = typeof error.stdout === 'string' ? error.stdout : '';
   }
-  const fields = output.split('\0');
+  // The source, the line, the pattern and the path for each path
+  const records = arrayChunks(output.split('\0'), 4);
   return paths.map((_, index) => {
-    const [source = '', line = '', pattern = ''] = fields.slice(index * 4, index * 4 + 4);
+    const [source = '', line = '', pattern = ''] = records[index] || [];
     return {
       ignored: pattern.length > 0 && !pattern.startsWith('!'),
       ...(source.length > 0 && {source, line: Number(line), pattern}),

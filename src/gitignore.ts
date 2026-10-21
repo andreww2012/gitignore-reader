@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {mapGetOrInsert, mapGetOrInsertComputed} from '@andreww2012/unutils/map';
 import {toEslintIgnores} from './eslint-ignores.ts';
 import {getParentDirectory, getPathInDirectory, isPathInside, toPath, toPosixPath} from './path.ts';
 import {
@@ -216,19 +217,15 @@ export const createGitignoreBuilder = ({
   const toKey = (relativePath: string) =>
     normalizeCase(toByteString(relativePath), isCaseInsensitive);
 
-  const getApplicableSources = (directoryKey: string): readonly FileSource[] => {
-    let sources = applicableSourcesCache.get(directoryKey);
-    if (!sources) {
+  const getApplicableSources = (directoryKey: string): readonly FileSource[] =>
+    mapGetOrInsertComputed(applicableSourcesCache, directoryKey, () => {
       const parentSources =
         directoryKey.length === 0
           ? baseSources
           : getApplicableSources(getParentDirectory(directoryKey));
       const ownSources = sourcesByDirectory.get(directoryKey);
-      sources = ownSources ? [...parentSources, ...ownSources] : parentSources;
-      applicableSourcesCache.set(directoryKey, sources);
-    }
-    return sources;
-  };
+      return ownSources ? [...parentSources, ...ownSources] : parentSources;
+    });
 
   /** Doesn't check the parents */
   const findMatch = (key: string, isDirectory: boolean): Match | undefined => {
@@ -252,14 +249,10 @@ export const createGitignoreBuilder = ({
     return undefined;
   };
 
-  const matchDirectory = (key: string) => {
-    let match = directoryCache.get(key);
-    if (match === undefined) {
-      match = findMatch(key, true) || null;
-      directoryCache.set(key, match);
-    }
-    return match;
-  };
+  const findDirectoryMatch = (key: string) => findMatch(key, true) || null;
+
+  const matchDirectory = (key: string) =>
+    mapGetOrInsertComputed(directoryCache, key, findDirectoryMatch);
 
   /** Checks the parents too */
   const checkKey = (key: string, isDirectory: boolean) => {
@@ -346,7 +339,7 @@ export const createGitignoreBuilder = ({
       fileSources.push(source);
       if (type === 'ignore-file') {
         const key = toKey(directory);
-        sourcesByDirectory.set(key, [...(sourcesByDirectory.get(key) || []), source]);
+        mapGetOrInsert(sourcesByDirectory, key, []).push(source);
       } else {
         baseSources.push(source);
       }
