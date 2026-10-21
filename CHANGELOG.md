@@ -1,5 +1,11 @@
 # gitignore-reader-x
 
+## 0.1.0
+
+### Minor Changes
+
+- [`b240011`](https://github.com/andreww2012/gitignore-reader/commit/b240011082c76aa251aa389c8f3ca42899e86e50) - A missing `cwd`, or one that isn't a directory, now throws an error, unless the new `allowMissingCwd` option is set
+
 ## 0.0.1
 
 ### Patch Changes
