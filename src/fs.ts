@@ -130,7 +130,7 @@ export const readFilesAndGetRealPaths = quansync({
     Promise.all([readFiles.async(files), getRealPaths.async(entryPaths)]),
 });
 
-// Reads all the files at once and returns their contents grouped the same way
+/** Reads all the files at once and returns their contents grouped the same way */
 export function* readFileGroups(
   groups: readonly (readonly FileToRead[])[],
 ): QuansyncGenerator<(string | undefined)[][]> {

@@ -138,6 +138,9 @@ const DEFAULT_FILE_NAMES: readonly string[] = ['.gitignore'];
 
 const DOT_GIT = '.git';
 const BRANCH_REF_PREFIX = 'ref: refs/heads/';
+// The real path depends on how git was built, this is the most common one
+const DEFAULT_SYSTEM_CONFIG_PATHS: readonly string[] =
+  process.platform === 'win32' ? [] : ['/etc/gitconfig'];
 
 interface GitEnvironment {
   env: Env;
@@ -167,13 +170,8 @@ const getGitEnvironment = (env: Env) => {
 
 /** In the order of precedence */
 const getConfigPaths = (repository: GitRepository, {env, home, xdgConfigHome}: GitEnvironment) => {
-  let systemPaths: string[] = [];
-  if (env.GIT_CONFIG_SYSTEM != null) {
-    systemPaths = [env.GIT_CONFIG_SYSTEM];
-  } else if (process.platform !== 'win32') {
-    // The real path depends on how git was built, this is the most common one
-    systemPaths = ['/etc/gitconfig'];
-  }
+  const systemPaths =
+    env.GIT_CONFIG_SYSTEM == null ? DEFAULT_SYSTEM_CONFIG_PATHS : [env.GIT_CONFIG_SYSTEM];
   const globalPaths =
     env.GIT_CONFIG_GLOBAL == null
       ? [path.join(xdgConfigHome, 'git', 'config'), path.join(home, '.gitconfig')]
@@ -213,7 +211,7 @@ const getSubmodulePaths = (content: string) =>
       : {path: submodulePath, line};
   });
 
-// Every entry of every config file git would read, in the order of precedence
+/** Every entry of every config file git would read, in the order of precedence */
 function* readGitConfig(
   files: {main: ConfigFile[]; worktree?: ConfigFile},
   {env, home}: GitEnvironment,
@@ -261,7 +259,7 @@ interface SearchContext {
   addNestedRepository: (directory: string) => void;
 }
 
-// Breadth-first, so that a batch of directories is read at once in async mode
+/** Breadth-first, so that a batch of directories is read at once in async mode */
 function* searchNestedIgnoreFiles(context: SearchContext): QuansyncGenerator<void> {
   const {cwd, skippedNames, toRelative} = context;
   let level = [{path: cwd, relativePath: toRelative(cwd), isStart: true}];
@@ -334,16 +332,11 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
   }
   const base = repository?.workTree || path.parse(cwd).root;
 
-  let top = base;
-  if (options.root != null) {
-    const root = path.resolve(cwd, toPath(options.root));
-    if (!isPathInside(cwd, root)) {
-      throw new Error(`\`cwd\` (${cwd}) must be inside \`root\` (${root})`);
-    }
-    if (isPathInside(root, base)) {
-      top = root;
-    }
+  const root = options.root == null ? undefined : path.resolve(cwd, toPath(options.root));
+  if (root != null && !isPathInside(cwd, root)) {
+    throw new Error(`\`cwd\` (${cwd}) must be inside \`root\` (${root})`);
   }
+  const top = root != null && isPathInside(root, base) ? root : base;
 
   // From `top` down to `cwd`
   const searchedAncestors = arrayTakeWhile(getAncestors(cwd), (ancestor) =>
@@ -411,38 +404,40 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
     ancestorIgnoreFiles,
   ]);
 
-  let configEntries: ConfigEntry[] = [];
-  if (repository && configPaths) {
-    configEntries = yield* readGitConfig(
-      {
-        main: configPaths.main.map((configPath, index) => ({
-          path: configPath,
-          content: mainConfigContents[index],
-        })),
-        ...(configPaths.worktree != null && {
-          worktree: {path: configPaths.worktree, content: worktreeConfigContent},
-        }),
-      },
-      gitEnvironment,
-      {
-        // Git tries the real path first
-        gitDirectories: [...new Set([realGitDirectory, repository.gitDirectory])].filter(
-          (gitDirectory) => gitDirectory != null,
-        ),
-        ...(head != null && {head}),
-      },
-    );
-  }
+  const configEntries =
+    repository && configPaths
+      ? yield* readGitConfig(
+          {
+            main: configPaths.main.map((configPath, index) => ({
+              path: configPath,
+              content: mainConfigContents[index],
+            })),
+            ...(configPaths.worktree != null && {
+              worktree: {path: configPaths.worktree, content: worktreeConfigContent},
+            }),
+          },
+          gitEnvironment,
+          {
+            // Git tries the real path first
+            gitDirectories: [...new Set([realGitDirectory, repository.gitDirectory])].filter(
+              (gitDirectory) => gitDirectory != null,
+            ),
+            ...(head != null && {head}),
+          },
+        )
+      : [];
   const isCaseInsensitive =
     options.ignoreCase ?? isTrueEntry(findConfigEntry(configEntries, 'core', 'ignorecase'));
 
-  let excludesFilePath = givenExcludesFilePath;
-  let excludesFileContent = givenExcludesFileContent;
-  if (repository && excludesFile === true) {
-    excludesFilePath = getExcludesFilePath(configEntries, gitEnvironment, repository.workTree);
-    [excludesFileContent] =
-      excludesFilePath == null ? [] : yield* readFiles([{path: excludesFilePath}]);
-  }
+  const excludesFilePath =
+    repository && excludesFile === true
+      ? getExcludesFilePath(configEntries, gitEnvironment, repository.workTree)
+      : givenExcludesFilePath;
+  // A given file is already read
+  const [excludesFileContent] =
+    excludesFilePath == null || excludesFilePath === givenExcludesFilePath
+      ? [givenExcludesFileContent]
+      : yield* readFiles([{path: excludesFilePath}]);
 
   const builder = createGitignoreBuilder({
     cwd,

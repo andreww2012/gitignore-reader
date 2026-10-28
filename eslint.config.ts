@@ -28,6 +28,13 @@ export default eslintConfig({
         whitelist: ['@andreww2012/unutils'],
       }),
     },
+    jsdoc: {
+      overrides: {
+        // The generators here are quansync ones: what they yield is internal, callers only get
+        // the return value
+        'jsdoc/require-yields': 0,
+      },
+    },
     markdown: {
       configSentencesPerLine: true,
     },

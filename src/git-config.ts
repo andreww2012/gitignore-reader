@@ -249,28 +249,30 @@ export const resolveConfigPath = (value: string, home: string, relativeTo: strin
   return value.startsWith('~/') ? path.join(home, value.slice(2)) : path.resolve(relativeTo, value);
 };
 
-// Makes a `gitdir:` pattern absolute, like git: `~/` is the real path of the home directory, `./`
-// is the directory of the real path of the config file (matched literally: it's the returned
-// prefix), and other relative patterns match at any depth
+/**
+ * Makes a `gitdir:` pattern absolute, like git: `~/` is the real path of the home directory, `./`
+ * is the directory of the real path of the config file (matched literally: it's the returned
+ * prefix), and other relative patterns match at any depth
+ */
 function* prepareGitDirectoryPattern(
   rawPattern: string,
   configFilePath: string,
   home: string,
 ): QuansyncGenerator<{prefix: string; pattern: string}> {
-  let pattern = toPosixPath(rawPattern);
-  let prefix = '';
+  const pattern = toPosixPath(rawPattern);
   if (pattern === '~' || pattern.startsWith('~/')) {
     const [realHome = home] = yield* getRealPaths([home]);
-    pattern = `${toPosixPath(realHome)}${pattern.slice(1)}`;
-  } else if (pattern.startsWith('./')) {
-    const [realConfigFilePath = configFilePath] = yield* getRealPaths([configFilePath]);
-    prefix = `${toPosixPath(path.dirname(realConfigFilePath))}/`;
-    pattern = pattern.slice(2);
-  } else if (!pattern.startsWith('/') && !WINDOWS_ABSOLUTE_PATH_REGEX.test(pattern)) {
-    pattern = `**/${pattern}`;
+    return {prefix: '', pattern: `${toPosixPath(realHome)}${pattern.slice(1)}`};
   }
-  // `./` alone ends with a slash too
-  return {prefix, pattern: `${prefix}${pattern}`.endsWith('/') ? `${pattern}**` : pattern};
+  if (pattern.startsWith('./')) {
+    const [realConfigFilePath = configFilePath] = yield* getRealPaths([configFilePath]);
+    return {
+      prefix: `${toPosixPath(path.dirname(realConfigFilePath))}/`,
+      pattern: pattern.slice(2),
+    };
+  }
+  const isAbsolute = pattern.startsWith('/') || WINDOWS_ABSOLUTE_PATH_REGEX.test(pattern);
+  return {prefix: '', pattern: isAbsolute ? pattern : `**/${pattern}`};
 }
 
 function* evaluateCondition(
@@ -298,7 +300,11 @@ function* evaluateCondition(
     context.home,
   );
   const normalizedPrefix = normalizeCase(prefix, isCaseInsensitive);
-  const isMatch = createConditionMatcher(pattern, isCaseInsensitive);
+  // `./` alone ends with a slash too
+  const isMatch = createConditionMatcher(
+    `${prefix}${pattern}`.endsWith('/') ? `${pattern}**` : pattern,
+    isCaseInsensitive,
+  );
   return context.gitDirectories.some((gitDirectory) => {
     const posixGitDirectory = toPosixPath(gitDirectory);
     return (
@@ -350,7 +356,7 @@ function* expandIncludes(
   return result;
 }
 
-// Parses the already read config files and reads their includes one by one
+/** Parses the already read config files and reads their includes one by one */
 export function* expandGitConfigFiles(
   files: readonly {path: string; content: string | undefined}[],
   context: ConfigContext,

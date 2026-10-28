@@ -95,9 +95,8 @@ const createRandom = (seed: number) => {
   return () => {
     // mulberry32
     state = (state + 0x6d_2b_79_f5) >>> 0;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    const mixed = Math.imul(state ^ (state >>> 15), state | 1);
+    const value = mixed ^ (mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61));
     return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
   };
 };

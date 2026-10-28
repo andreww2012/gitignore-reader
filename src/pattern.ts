@@ -364,11 +364,10 @@ const toRegexClass = (
 
 /** If case-insensitive, the regex expects paths with the case normalized */
 const toRegexSource = (tokens: readonly Token[], isCaseInsensitive: boolean) => {
-  let isSlashConsumed = false;
   const source = tokens
     .map((token, index) => {
-      if (isSlashConsumed) {
-        isSlashConsumed = false;
+      // The slash after `**` is already part of its regex
+      if (isGlobstar(tokens, index - 1)) {
         return '';
       }
       if (token.type === 'literal') {
@@ -383,12 +382,8 @@ const toRegexSource = (tokens: readonly Token[], isCaseInsensitive: boolean) => 
       if (!isGlobstar(tokens, index)) {
         return '[^/]*';
       }
-      if (index === tokens.length - 1) {
-        return '.*';
-      }
       // `**/` also matches nothing
-      isSlashConsumed = true;
-      return '(?:.*/)?';
+      return index === tokens.length - 1 ? '.*' : '(?:.*/)?';
     })
     .join('');
   return `^${source}$`;
@@ -454,16 +449,10 @@ const parseRule = (rawLine: string, line: number) => {
     return undefined;
   }
   const isNegated = pattern.startsWith('!');
-  let body = isNegated ? pattern.slice(1) : pattern;
-  const isDirectoryOnly = body.endsWith(SLASH);
-  if (isDirectoryOnly) {
-    body = body.slice(0, -1);
-  }
+  const isDirectoryOnly = pattern.endsWith(SLASH);
+  const body = pattern.slice(isNegated ? 1 : 0, isDirectoryOnly ? -1 : undefined);
   // Escaped slashes count too, as in git
   const isAnchored = body.includes(SLASH);
-  if (body.startsWith(SLASH)) {
-    body = body.slice(1);
-  }
   return {
     rule: {
       pattern,
@@ -472,7 +461,7 @@ const parseRule = (rawLine: string, line: number) => {
       directoryOnly: isDirectoryOnly,
       anchored: isAnchored,
     } satisfies GitignoreRule,
-    body,
+    body: body.startsWith(SLASH) ? body.slice(1) : body,
   };
 };
 

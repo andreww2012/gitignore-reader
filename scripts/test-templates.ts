@@ -1,4 +1,4 @@
-// Runs `test/templates.test.ts` on https://github.com/github/gitignore, fetched at a fixed commit
+// Runs the template tests on https://github.com/github/gitignore, fetched at a fixed commit
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

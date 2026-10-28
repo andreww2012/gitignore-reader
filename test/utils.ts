@@ -126,14 +126,9 @@ interface GitCheckResult {
   pattern?: string;
 }
 
-/** Runs `git check-ignore --verbose --non-matching` for the paths, relative to the repository */
-export const gitCheckIgnore = (fixture: Fixture, paths: readonly string[]): GitCheckResult[] => {
-  if (paths.length === 0) {
-    return [];
-  }
-  let output: string;
+const runCheckIgnore = (fixture: Fixture, paths: readonly string[]) => {
   try {
-    output = fixture.git(['check-ignore', '-z', '--stdin', '-v', '-n', '--no-index'], {
+    return fixture.git(['check-ignore', '-z', '--stdin', '-v', '-n', '--no-index'], {
       input: paths.join('\0'),
     });
   } catch (error) {
@@ -141,10 +136,17 @@ export const gitCheckIgnore = (fixture: Fixture, paths: readonly string[]): GitC
     if (!(error instanceof Error && 'status' in error && error.status === 1 && 'stdout' in error)) {
       throw error;
     }
-    output = typeof error.stdout === 'string' ? error.stdout : '';
+    return typeof error.stdout === 'string' ? error.stdout : '';
+  }
+};
+
+/** Runs `git check-ignore --verbose --non-matching` for the paths, relative to the repository */
+export const gitCheckIgnore = (fixture: Fixture, paths: readonly string[]): GitCheckResult[] => {
+  if (paths.length === 0) {
+    return [];
   }
   // The source, the line, the pattern and the path for each path
-  const records = arrayChunks(output.split('\0'), 4);
+  const records = arrayChunks(runCheckIgnore(fixture, paths).split('\0'), 4);
   return paths.map((_, index) => {
     const [source = '', line = '', pattern = ''] = records[index] || [];
     return {

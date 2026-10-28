@@ -357,20 +357,16 @@ export const createGitignoreBuilder = ({
       directory: string;
       line: number;
     }) => {
-      let source = separateRepositorySources.get(type);
-      if (!source) {
-        source = {
-          publicSource: {
-            type,
-            ...(filePath != null && {path: filePath}),
-            directory: base,
-            rules: [],
-          },
-          directory: '',
+      const source = mapGetOrInsertComputed(separateRepositorySources, type, () => ({
+        publicSource: {
+          type,
+          ...(filePath != null && {path: filePath}),
+          directory: base,
           rules: [],
-        };
-        separateRepositorySources.set(type, source);
-      }
+        },
+        directory: '',
+        rules: [],
+      }));
       const compiled = compileDirectoryRule(directory, line, isCaseInsensitive);
       source.rules.push(compiled);
       source.publicSource.rules.push(compiled.rule);

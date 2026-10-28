@@ -1,9 +1,12 @@
 # Guidelines
 
-Source: <https://github.com/andreww2012/ai-guidelines/blob/@andreww2012/ai-guidelines@0.2.5/.agents/guidelines.md>
+Source: <https://github.com/andreww2012/ai-guidelines/blob/@andreww2012/ai-guidelines@0.2.6/.agents/guidelines.md>
 
 These are generic guidelines that might be copied or linked from a different repository.
 If anything stated here conflicts with the origin repo or the prompt, prefer them.
+
+Headings only group rules and don't limit where they apply, unless the text says so.
+For example, "Communication and writing" rules apply to your output, docs and code alike.
 
 ## Communication and writing
 
@@ -11,7 +14,7 @@ If anything stated here conflicts with the origin repo or the prompt, prefer the
 Most likely you'll be read by people who are not native or C2-level speakers, so adapt accordingly.
 Avoid:
 
-- long dashes or the ellipsis character (U+2026);
+- long dashes (like —, U+2014), the ellipsis character (…, U+2026), or quotation marks other than the plain `"` and `'` (like “ and ’, U+201C and U+2019);
 - terms and phrases like "load-bearing", "byte-identical", "it's not x; it's y", "earn its place" and similar;
 - complex metaphors and jargon;
 - mannered prose;
@@ -23,18 +26,34 @@ Sound human.
 None of the above is a hard ban: use anything if it actually fits.
 This applies to all languages, not only English.
 
-Don't report how extensively you've verified your work - if you need to say that, say *very* briefly.
+Avoid British variants of words like *behaviour* or *organisation* unless the project allows them.
 
-Don't say (unless asked explicitly) you have been following these guidelines; just follow them.
-In general, don't mention that you followed an instruction - that is implied.
+In comments and docs, don't name symbols (variables), commands, files, etc. unless the reader needs the name: if the entity is renamed, the reference becomes stale.
+
+Code, comments, docs and other work artifacts must make sense without the session context: don't write anything that can't be understood without it, like `// as requested`, `// now uses X instead of Y` or mentions of earlier attempts.
 
 ## Code
 
+Always challenge your implementation for performance, ergonomics and code length issues and find ways to improve it.
+Adhere to **DRY**, **KISS**, **YAGNI**, **Rule of three**, **high cohesion and low coupling** and other principles/rules of writing clean and maintainable code.
+Don't over-engineer or over-optimize things though - in most situations, that is not required.
+
+If a file you change gets big (usually more than 1000 lines), look closely for ways to refactor or reorganize it, like splitting it into smaller files.
+Suggest these changes to the user instead of making them on your own.
+
+Make sure the code works on all common platforms (usually Windows, Linux and macOS), unless that's not needed.
+
+If you need a utility or a utility type, first look for it in the project's own code and its direct dependencies (common candidates: `utilery`, `es-toolkit`, `type-fest`).
+
 - Use `const` instead of `let` whenever possible.
 - Use arrow functions whenever possible.
-- Avoid common shorthands like `str`, `arr`, `cls`, `brk`, `err`, `val`, `pkg`, `dir`, etc.
-  Use full words.
-  The only exceptions are: `dict`, `ctx`, `acc`, `fn`, `docs` (when it's shorthand for "documentation", not "document"), `dev`, `param`, index variables like `i`/`j`/etc, `coeff`, `env`.
+- Use full words instead of shorthands:
+  - ❌ `str`, `arr`, `cls`, `brk`, `err`, `val`, `pkg`, `dir`, etc.
+
+  Exceptions:
+  - ✅ `acc`, `char`, `coeff`, `ctx`, `dev`, `dict`, `env`, `fn`, `impl`, `param`
+  - ✅ `docs` (when it's shorthand for "documentation", not "documents")
+  - ✅ index variables like `i`/`j`/etc.
 - Never omit curly braces around blocks (like `if`, `else`, etc.)
 - Let the type system infer types whenever possible: prefer implicit/inferred return types.
   Especially avoid:
@@ -68,6 +87,7 @@ In general, don't mention that you followed an instruction - that is implied.
 - Prefer `...(condition && {property: ...})` over `...(condition ? {property: ...} : {})` or `property: condition ? ... : undefined` (use the last form only when the key must exist even if its value is `undefined`).
 - If `!== ''`/`=== ''` work the same as `.length > 0`/`.length === 0`, prefer the latter.
 - Put units in names: `MAX_SIZE_BYTES` or `DURATION_MS`, not `MAX_SIZE` or `DURATION`.
+- Prefer reading `.json` files with a static `import` rather than with file system utilities, unless the path is only known at runtime.
 
 ### Performance
 
@@ -87,9 +107,13 @@ In general, don't mention that you followed an instruction - that is implied.
 - Sort symbols in `export {...}` expressions alphabetically, unless it makes sense to do something else (likely group exports, but they must be sorted within each group too).
   Always sort symbols in `import {...}` expressions and sort import statements themselves in [`sort-imports`](https://eslint.org/docs/latest/rules/sort-imports) and [`import/order`](https://raw.githubusercontent.com/un-ts/eslint-plugin-import-x/refs/tags/v4.17.1/docs/rules/order.md) orders respectively.
   Unless the used linter's config says otherwise, assume these `import/order` options: `{groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'], alphabetize: {order: 'asc'}}`.
+  If the project doesn't enforce this order with a tool like ESLint, suggest doing so at the end of your work.
 - In general, in *large* lists prefer keeping things alphabetical, if it makes sense and you're not told otherwise.
 - Keep each sentence in Markdown or JSDoc on a separate line, exactly like in this document.
-  Exception: `.changeset/*.md` files, as [changesets](https://github.com/changesets/changesets) would render them differently in the changelog.
+  Exceptions:
+  - `.changeset/*.md` files, as [changesets](https://github.com/changesets/changesets) would render them differently in the changelog;
+  - content for the hosting platform (issues, comments, etc.) and drafts of it, as GitHub and some other platforms show each line break there as a real one.
+- Use `kebab-case` for file and directory names, unless they should be called differently by convention (like `README.md`, `AGENTS.md`, etc.).
 
 ### Comments
 
@@ -100,11 +124,10 @@ In general, don't mention that you followed an instruction - that is implied.
 - Wrap comments to fit the max line length (usually set in `.editorconfig` or the formatter config).
   Tool-specific comments, like `eslint-disable-next-line <rule> -- <reason>`, `cspell:ignore <words>`, don't have to fit it.
   In block comments (like `<!-- ... -->` or `/* ... */`, but not JSDoc), keep the opening marker on the first line of the text and the closing marker on the last one.
-- Minimize referencing symbol (variable) names in comments: if they ever get renamed in the codebase, there's a real risk of your reference becoming stale.
 
 ### Documentation (including comments)
 
-If you need to link an npm package, prefer `https://npmx.dev/<package-name>` links over npmjs.org ones or direct repo links.
+If you need to link an npm package, prefer `https://npmx.dev/<package-name>` links over `npmjs.com` ones or direct repo links.
 
 In Russian, prefer `ё` over `е`.
 
@@ -121,7 +144,34 @@ For containers with dynamic text, use `overflow-wrap: anywhere` unless you genui
 
 ## Workflow
 
-### Committing
+### General
+
+Before implementing anything, check the repo's `.{agents,claude}/skills` directory for relevant instructions.
+
+If someone points out a mistake you made, *proactively* check your changes and the related code for similar or related mistakes.
+
+For every bug you fix, write regression tests if the project has tests.
+
+If you create a package patch, always add comments explaining all the changes.
+Some package managers, for example pnpm, allow free text before the diff in a patch file.
+This is a good place for these comments.
+
+If you find likely bugs in dependencies, mention them at the end of your work.
+If the user asks you to draft an issue, draft it in the same session (NEVER send it to the Internet):
+
+- in raw Markdown, with the issue title and body in separate code blocks;
+- with *minimal* text and a *minimal* reproduction;
+- with the "Writing on the hosting platform" rules applied;
+- with a direct link where the issue can be reported.
+
+Run all commands through the project's package manager, including one-off binaries: e.g. in a pnpm project, use `pnpm why` and `pnpm (exec|dlx)` instead of `npm why` and `npx`, unless the equivalent is missing.
+If [`@antfu/ni` commands](https://raw.githubusercontent.com/antfu-collective/ni/refs/heads/main/README.md) are available, prefer them over package manager native ones (e.g. `ni` instead of `(p)npm i(nstall)`, `nr` instead of `(p)npm run` and so on).
+
+Avoid editing generated files, including package managers' lockfiles, unless there's a good reason to do otherwise.
+
+Prefer not to use your memory: save anything that may help other people working on this repo to `AGENTS.md`/`CLAUDE.md` instead.
+
+### Version control
 
 NEVER stage/unstage or commit changes unless explicitly asked to, not even as a side effect: e.g. use `mv`/`rm`, not `git mv`/`git rm`.
 Assume your change may be staged or committed by a user (most likely) or another agent at any point.
@@ -130,6 +180,8 @@ At the end of your work, *suggest* commit message(s) that follow the project's c
 Check them with the project's commit linter (e.g. `commitlint`), if there is one.
 Always put package names inside backticks in commit messages.
 Always use the imperative mood in commit headers.
+
+Use git stash only if there's no other way: prefer git worktrees or throwaway repos.
 
 ### Writing on the hosting platform
 
@@ -159,42 +211,14 @@ Find out:
 Use the contribution rules, issue templates, recent issues, and maintainer replies as sources.
 If you cannot find this information, assume maintainers are busy people who do not trust AI content: be short and specific, and include only facts you verified.
 
-### Uncategorized
+### Updating dependencies
 
-If someone points out your mistake, check all your changes for other mistakes of the same kind.
+If you're asked to update dependencies, update them one by one, but group closely related ones (like `vitest` and `@vitest/*`).
+With each update, remove dependency rules that the new version no longer needs, like minimum release age exceptions, overrides, patches, etc.
+You may commit each update, as a deliberate exception to the rule against committing without being asked, only when you need to create multiple commits.
 
-Use git stash only if there's no other way: prefer git worktrees or throwaway repos.
-
-If you create a package patch, always add comments explaining all the changes.
-Some package managers, for example pnpm, allow free text before the diff in a patch file.
-This is a good place for these comments.
-
-If you find a likely bug in a dependency, mention it at the end of your work.
-If the user asks you to draft an issue, draft it in the same session: in raw Markdown, with *minimal* text and a *minimal* reproduction, and without the AI disclosure preamble.
-NEVER send it to the Internet.
-
-## Misc (still VERY important)
-
-Before implementing something, check the repo's `.{agents,claude}/skills` directory for relevant instructions.
-
-Always challenge your implementation for performance, ergonomics and code length issues and find ways to improve it.
-Adhere to **DRY**, **KISS**, **YAGNI**, **Rule of three**, **high cohesion and low coupling** and other principles/rules of writing clean and maintainable code.
-Don't over-engineer or over-optimize things though - this is not required in most cases.
-
-Make sure the code works on all common platforms (usually Windows, Linux and macOS), unless that's not needed.
-
-Use `kebab-case` for file and directory names, unless they should be called differently by convention (like `README.md`, `AGENTS.md`, etc.).
-
-Avoid British variants of words like *behaviour* or *organisation* unless the project allows them.
-
-Run all commands through the project's package manager, including one-off binaries: e.g. in a pnpm project, use `pnpm why` and `pnpm (exec|dlx)` instead of `npm why` and `npx`, unless the equivalent is missing.
-If [`@antfu/ni` commands](https://raw.githubusercontent.com/antfu-collective/ni/refs/heads/main/README.md) are available, prefer them over package manager native ones (e.g. `ni` instead of `(p)npm i(nstall)`, `nr` instead of `(p)npm run` and so on).
-
-Avoid editing generated files, including package managers' lockfiles, unless there's a good reason to do otherwise.
-
-If you need a utility or a utility type, first look for it in the project's own code and its direct dependencies (common candidates: `es-toolkit`, `type-fest`, `@andreww2012/unutils`).
-
-Prefer not to use your memory: save anything that may help other people working on this repo to `AGENTS.md`/`CLAUDE.md` instead.
+Start the commit header of each update, including the ones you only suggest, with ``chore(deps): update `package-name` to v<version>`` (unless a different commit style is used).
+You may use another conventional commit type, like `fix`, `feat`, etc., if it makes more sense, and say what has changed in the commit header.
 
 ## Testing tools, linters and checkers
 
@@ -244,3 +268,10 @@ If a word to ignore is only found in a single file:
   If the element has nothing but text, also start the text right after the opening tag.
 - In runtime props declarations (not type-based), always set `required: true|false` explicitly.
 - Don't put HTML comments at the root of `<template>`: Vue keeps them only in dev mode, where they make the component a fragment.
+
+## Meta
+
+Don't report how extensively you've verified your work - if you need to say that, say *very* briefly.
+
+Don't say (unless asked explicitly) you have been following these guidelines; just follow them.
+In general, don't mention that you followed an instruction - that is implied.

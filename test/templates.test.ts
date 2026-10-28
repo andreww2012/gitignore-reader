@@ -97,18 +97,14 @@ const toggleFirstLetterCase = (name: string) => {
 
 /** Paths that match the pattern, and some that almost do */
 const createCandidatePaths = (rule: string): CandidatePath[] => {
-  let pattern = rule.trimEnd();
-  if (pattern.startsWith('!')) {
-    pattern = pattern.slice(1);
-  }
-  const isDirectoryOnly = pattern.endsWith('/');
-  if (isDirectoryOnly) {
-    pattern = pattern.slice(0, -1);
-  }
-  const isAnchored = pattern.includes('/');
-  if (pattern.startsWith('/')) {
-    pattern = pattern.slice(1);
-  }
+  const trimmedRule = rule.trimEnd();
+  const isDirectoryOnly = trimmedRule.endsWith('/');
+  const body = trimmedRule.slice(
+    trimmedRule.startsWith('!') ? 1 : 0,
+    isDirectoryOnly ? -1 : undefined,
+  );
+  const isAnchored = body.includes('/');
+  const pattern = body.startsWith('/') ? body.slice(1) : body;
   return [0, 1, 2].flatMap((variant) => {
     const segments = pattern
       .split('/')

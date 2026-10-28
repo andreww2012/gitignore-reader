@@ -148,7 +148,8 @@ const rebaseTokens = (
     );
 };
 
-const ruleToEslintIgnores = (
+/** Globs relative to `cwdDirectory`, `undefined` stands for one that can never match */
+const getGlobs = (
   {rule, tokens}: CompiledRule,
   sourceDirectory: string,
   cwdDirectory: string,
@@ -157,36 +158,42 @@ const ruleToEslintIgnores = (
   if (!tokens) {
     return [];
   }
-  let globs: (string | undefined)[];
   if (isInsideDirectory(sourceDirectory, cwdDirectory)) {
     const prefix =
       sourceDirectory === cwdDirectory
         ? ''
         : `${toGlobLiteral(getPathInDirectory(sourceDirectory, cwdDirectory))}/`;
     const glob = toGlob(tokens, rule.anchored);
-    globs = [glob == null ? glob : `${prefix}${rule.anchored ? '' : '**/'}${glob}`];
-  } else if (isInsideDirectory(cwdDirectory, sourceDirectory)) {
-    if (rule.anchored) {
-      const subdirectorySegments = getPathInDirectory(cwdDirectory, sourceDirectory).split('/');
-      globs = rebaseTokens(tokens, subdirectorySegments, isCaseInsensitive).map((rebased) =>
-        toGlob(rebased, true),
-      );
-    } else {
-      const glob = toGlob(tokens, false);
-      globs = [glob == null ? glob : `**/${glob}`];
-    }
-  } else {
+    return [glob == null ? glob : `${prefix}${rule.anchored ? '' : '**/'}${glob}`];
+  }
+  if (!isInsideDirectory(cwdDirectory, sourceDirectory)) {
     return [];
   }
-  return globs.flatMap((glob) => {
+  if (rule.anchored) {
+    const subdirectorySegments = getPathInDirectory(cwdDirectory, sourceDirectory).split('/');
+    return rebaseTokens(tokens, subdirectorySegments, isCaseInsensitive).map((rebased) =>
+      toGlob(rebased, true),
+    );
+  }
+  const glob = toGlob(tokens, false);
+  return [glob == null ? glob : `**/${glob}`];
+};
+
+const ruleToEslintIgnores = (
+  compiled: CompiledRule,
+  sourceDirectory: string,
+  cwdDirectory: string,
+  isCaseInsensitive: boolean,
+) =>
+  getGlobs(compiled, sourceDirectory, cwdDirectory, isCaseInsensitive).flatMap((glob) => {
     if (glob == null) {
       return [];
     }
     // Unlike git, minimatch matches the directory itself with `dir/**`
     const fixedGlob = glob !== '**' && glob.endsWith('/**') ? `${glob}/*` : glob;
-    return fromByteString(`${rule.negated ? '!' : ''}${fixedGlob}${rule.directoryOnly ? '/' : ''}`);
+    const {negated, directoryOnly} = compiled.rule;
+    return fromByteString(`${negated ? '!' : ''}${fixedGlob}${directoryOnly ? '/' : ''}`);
   });
-};
 
 /** Keeps the last occurrence of each glob: the earlier ones can't change the outcome */
 const removeDuplicates = (globs: readonly string[]) => {
