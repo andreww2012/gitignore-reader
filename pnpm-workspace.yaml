@@ -6,7 +6,8 @@ lockfile:
   includeResolutionSettings: true
 
 minimumReleaseAge: 960 # 16 hours in minutes
-minimumReleaseAgeExclude: []
+minimumReleaseAgeExclude: # []
+  - tsdown@0.23.3
 minimumReleaseAgeExcludePrune: true
 
 trustPolicy: no-downgrade
