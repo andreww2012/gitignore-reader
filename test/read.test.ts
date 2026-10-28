@@ -33,7 +33,7 @@ describe('sources', () => {
         source.rules.map((rule) => rule.pattern),
       ]),
     ).toStrictEqual([
-      ['excludes-file', path.join('..', 'home', '.config', 'git', 'ignore'), ['.DS_Store']],
+      ['global-ignore-file', path.join('..', 'home', '.config', 'git', 'ignore'), ['.DS_Store']],
       ['info-exclude', path.join('.git', 'info', 'exclude'), ['info-ignored']],
       ['ignore-file', '.gitignore', ['root-ignored']],
       ['ignore-file', path.join('packages', '.gitignore'), ['packages-ignored']],
@@ -147,7 +147,7 @@ describe('sources', () => {
     ]);
   });
 
-  it('`infoExclude: false` and `excludesFile: false`', () => {
+  it('`infoExclude: false` and `globalIgnoreFile: false`', () => {
     const fixture = createFixture();
     fixture.writeInfoExclude('a\n');
     fixture.writeGlobalIgnore('b\n');
@@ -163,7 +163,7 @@ describe('sources', () => {
       readGitignoreSync({
         cwd: fixture.root,
         env: fixture.env,
-        sources: {excludesFile: false},
+        sources: {globalIgnoreFile: false},
       }).toEslintIgnores(),
     ).toStrictEqual(['**/a']);
   });
@@ -175,19 +175,22 @@ const setUp = (gitconfig: string) => {
   return fixture;
 };
 
-const readExcludesFile = (fixture: Fixture, env: ReadGitignoreOptions['env'] = fixture.env) =>
+const getGlobalIgnoreFilePath = (
+  fixture: Fixture,
+  env: ReadGitignoreOptions['env'] = fixture.env,
+) =>
   readGitignoreSync({cwd: fixture.root, env}).sources.find(
-    (source) => source.type === 'excludes-file',
+    (source) => source.type === 'global-ignore-file',
   )?.path;
 
-describe('global excludes file', () => {
+describe('global ignore file', () => {
   it('defaults to `$XDG_CONFIG_HOME/git/ignore`', () => {
     const fixture = setUp('');
     const xdgConfigHome = path.join(fixture.home, 'xdg');
     fs.mkdirSync(path.join(xdgConfigHome, 'git'), {recursive: true});
     fs.writeFileSync(path.join(xdgConfigHome, 'git', 'ignore'), '');
 
-    expect(readExcludesFile(fixture, {...fixture.env, XDG_CONFIG_HOME: xdgConfigHome})).toBe(
+    expect(getGlobalIgnoreFilePath(fixture, {...fixture.env, XDG_CONFIG_HOME: xdgConfigHome})).toBe(
       path.join(xdgConfigHome, 'git', 'ignore'),
     );
   });
@@ -196,7 +199,7 @@ describe('global excludes file', () => {
     const fixture = setUp('[core]\n  excludesfile = "~/my ignore" ; comment\n');
     fs.writeFileSync(path.join(fixture.home, 'my ignore'), 'x\n');
 
-    expect(readExcludesFile(fixture)).toBe(path.join(fixture.home, 'my ignore'));
+    expect(getGlobalIgnoreFilePath(fixture)).toBe(path.join(fixture.home, 'my ignore'));
   });
 
   it('the last value wins, the repository config overrides the global one', () => {
@@ -204,11 +207,11 @@ describe('global excludes file', () => {
     fs.writeFileSync(path.join(fixture.home, 'second'), '');
     fs.writeFileSync(path.join(fixture.home, 'local'), '');
 
-    expect(readExcludesFile(fixture)).toBe(path.join(fixture.home, 'second'));
+    expect(getGlobalIgnoreFilePath(fixture)).toBe(path.join(fixture.home, 'second'));
 
     fixture.git(['config', 'core.excludesFile', path.join(fixture.home, 'local')]);
 
-    expect(readExcludesFile(fixture)).toBe(path.join(fixture.home, 'local'));
+    expect(getGlobalIgnoreFilePath(fixture)).toBe(path.join(fixture.home, 'local'));
   });
 
   it('follows `include.path` and `includeIf` with `gitdir:` and `onbranch:`', () => {
@@ -239,11 +242,11 @@ describe('global excludes file', () => {
       fs.writeFileSync(path.join(fixture.home, name), '');
     });
 
-    expect(readExcludesFile(fixture)).toBe(path.join(fixture.home, 'b'));
+    expect(getGlobalIgnoreFilePath(fixture)).toBe(path.join(fixture.home, 'b'));
 
     fixture.git(['checkout', '--quiet', '-b', 'feature/x']);
 
-    expect(readExcludesFile(fixture)).toBe(path.join(fixture.home, 'c'));
+    expect(getGlobalIgnoreFilePath(fixture)).toBe(path.join(fixture.home, 'c'));
   });
 
   it('respects `GIT_CONFIG_COUNT` and `GIT_CONFIG_GLOBAL`', () => {
@@ -252,14 +255,16 @@ describe('global excludes file', () => {
     fs.writeFileSync(path.join(fixture.home, 'from-env'), '');
 
     expect(
-      readExcludesFile(fixture, {
+      getGlobalIgnoreFilePath(fixture, {
         ...fixture.env,
         GIT_CONFIG_COUNT: '1',
         GIT_CONFIG_KEY_0: 'core.excludesFile',
         GIT_CONFIG_VALUE_0: path.join(fixture.home, 'from-env'),
       }),
     ).toBe(path.join(fixture.home, 'from-env'));
-    expect(readExcludesFile(fixture, {...fixture.env, GIT_CONFIG_GLOBAL: ''})).toBeUndefined();
+    expect(
+      getGlobalIgnoreFilePath(fixture, {...fixture.env, GIT_CONFIG_GLOBAL: ''}),
+    ).toBeUndefined();
   });
 
   it('a string option sets the path, its patterns are relative to the working tree', () => {
@@ -268,7 +273,7 @@ describe('global excludes file', () => {
     const gitignore = readGitignoreSync({
       cwd: path.join(fixture.root, 'sub'),
       env: fixture.env,
-      sources: {excludesFile: pathToFileURL(path.join(fixture.home, 'custom'))},
+      sources: {globalIgnoreFile: pathToFileURL(path.join(fixture.home, 'custom'))},
     });
 
     expect(gitignore.toEslintIgnores()).toStrictEqual(['x', '**/log']);
@@ -535,7 +540,7 @@ describe('matching', () => {
       cwd: fixture.root,
       env: fixture.env,
       // The config must be read even without the global ignore file
-      sources: {excludesFile: false},
+      sources: {globalIgnoreFile: false},
     });
 
     expect(gitignore.ignoreCase).toBe(true);

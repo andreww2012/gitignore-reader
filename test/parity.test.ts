@@ -175,7 +175,7 @@ const createScenario = (seed: number) => {
     tree,
     directories,
     ...(random() < 0.5 && {infoExclude: createIgnoreFile(random)}),
-    ...(random() < 0.5 && {excludesFile: createIgnoreFile(random)}),
+    ...(random() < 0.5 && {globalIgnoreFile: createIgnoreFile(random)}),
     shouldConfigureExcludesFile: random() < 0.5,
     ...(directories.length > 0 && {
       subdirectory: directories[Math.floor(random() * directories.length)],
@@ -188,12 +188,12 @@ const writeGitSources = (fixture: Fixture, scenario: ReturnType<typeof createSce
   if (scenario.infoExclude != null) {
     fixture.writeInfoExclude(scenario.infoExclude);
   }
-  if (scenario.excludesFile != null) {
+  if (scenario.globalIgnoreFile != null) {
     if (scenario.shouldConfigureExcludesFile) {
-      fs.writeFileSync(path.join(fixture.home, 'global-ignore'), scenario.excludesFile);
+      fs.writeFileSync(path.join(fixture.home, 'global-ignore'), scenario.globalIgnoreFile);
       fs.writeFileSync(fixture.env.GIT_CONFIG_GLOBAL, '[core]\n\texcludesFile = ~/global-ignore\n');
     } else {
-      fixture.writeGlobalIgnore(scenario.excludesFile);
+      fixture.writeGlobalIgnore(scenario.globalIgnoreFile);
     }
   }
 };

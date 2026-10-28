@@ -28,7 +28,7 @@ export interface GitignoreSourcesOptions {
    * Only used inside a git repository
    * @default true
    */
-  excludesFile?: boolean | string | URL;
+  globalIgnoreFile?: boolean | string | URL;
 
   /**
    * Whether to read the repository's `$GIT_DIR/info/exclude` file
@@ -233,7 +233,7 @@ function* readGitConfig(
 }
 
 /** Returns `undefined` if `core.excludesFile` is set to an empty value */
-const getExcludesFilePath = (
+const getGlobalIgnoreFilePath = (
   entries: readonly ConfigEntry[],
   {home, xdgConfigHome}: GitEnvironment,
   workTree: string,
@@ -313,7 +313,7 @@ function* searchNestedIgnoreFiles(context: SearchContext): QuansyncGenerator<voi
 function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGenerator<Gitignore> {
   const {env = process.env, sources = {}} = options;
   const {
-    excludesFile = true,
+    globalIgnoreFile = true,
     infoExclude = true,
     fileNames = DEFAULT_FILE_NAMES,
     files = [],
@@ -366,13 +366,13 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
   const gitEnvironment = getGitEnvironment(env);
   // Needed for `core.excludesFile` and `core.ignoreCase`
   const configPaths =
-    repository && (excludesFile === true || options.ignoreCase == null)
+    repository && (globalIgnoreFile === true || options.ignoreCase == null)
       ? getConfigPaths(repository, gitEnvironment)
       : undefined;
   // Otherwise, it's found in the config
-  const givenExcludesFilePath =
-    repository && typeof excludesFile !== 'boolean'
-      ? path.resolve(cwd, toPath(excludesFile))
+  const givenGlobalIgnoreFilePath =
+    repository && typeof globalIgnoreFile !== 'boolean'
+      ? path.resolve(cwd, toPath(globalIgnoreFile))
       : undefined;
   const infoExcludePath =
     infoExclude && repository?.commonDirectory
@@ -392,14 +392,14 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
   const [
     mainConfigContents = [],
     [worktreeConfigContent] = [],
-    [givenExcludesFileContent] = [],
+    [givenGlobalIgnoreFileContent] = [],
     [infoExcludeContent] = [],
     [gitmodulesContent] = [],
     ancestorIgnoreFileContents = [],
   ] = yield* readFileGroups([
     (configPaths?.main || []).map((configPath) => ({path: configPath})),
     configPaths?.worktree == null ? [] : [{path: configPaths.worktree}],
-    givenExcludesFilePath == null ? [] : [{path: givenExcludesFilePath}],
+    givenGlobalIgnoreFilePath == null ? [] : [{path: givenGlobalIgnoreFilePath}],
     infoExcludePath == null ? [] : [{path: infoExcludePath}],
     gitmodulesPath == null ? [] : [{path: gitmodulesPath, followSymlinks: false}],
     ancestorIgnoreFiles,
@@ -430,15 +430,15 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
   const isCaseInsensitive =
     options.ignoreCase ?? isTrueEntry(findConfigEntry(configEntries, 'core', 'ignorecase'));
 
-  const excludesFilePath =
-    repository && excludesFile === true
-      ? getExcludesFilePath(configEntries, gitEnvironment, repository.workTree)
-      : givenExcludesFilePath;
+  const globalIgnoreFilePath =
+    repository && globalIgnoreFile === true
+      ? getGlobalIgnoreFilePath(configEntries, gitEnvironment, repository.workTree)
+      : givenGlobalIgnoreFilePath;
   // A given file is already read
-  const [excludesFileContent] =
-    excludesFilePath == null || excludesFilePath === givenExcludesFilePath
-      ? [givenExcludesFileContent]
-      : yield* readFiles([{path: excludesFilePath}]);
+  const [globalIgnoreFileContent] =
+    globalIgnoreFilePath == null || globalIgnoreFilePath === givenGlobalIgnoreFilePath
+      ? [givenGlobalIgnoreFileContent]
+      : yield* readFiles([{path: globalIgnoreFilePath}]);
 
   const builder = createGitignoreBuilder({
     cwd,
@@ -447,12 +447,12 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
     isCaseInsensitive,
   });
 
-  if (excludesFilePath != null && excludesFileContent != null) {
+  if (globalIgnoreFilePath != null && globalIgnoreFileContent != null) {
     builder.addFile({
-      type: 'excludes-file',
-      filePath: excludesFilePath,
+      type: 'global-ignore-file',
+      filePath: globalIgnoreFilePath,
       directory: '',
-      content: excludesFileContent,
+      content: globalIgnoreFileContent,
     });
   }
   if (infoExcludePath != null && infoExcludeContent != null) {

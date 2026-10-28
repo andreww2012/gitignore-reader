@@ -114,7 +114,7 @@ Relative paths in the options are resolved against `cwd`, and `cwd` itself again
 | `cwd`                        | `process.cwd()`   | The directory to read the rules for. Paths and ESLint patterns are relative to it.                    |
 | `allowMissingCwd`            | `false`           | Whether `cwd` may be missing. Otherwise, a missing `cwd` throws, so that a typo doesn't go unnoticed. |
 | `root`                       | The repository    | The topmost directory to read ignore files in. Can't be above the root of the repository.             |
-| `sources.excludesFile`       | `true`            | The global ignore file: `true` finds it like git does, a path sets it, `false` turns it off.          |
+| `sources.globalIgnoreFile`   | `true`            | The global ignore file: `true` finds it like git does, a path sets it, `false` turns it off.          |
 | `sources.infoExclude`        | `true`            | Whether to read `$GIT_DIR/info/exclude`.                                                              |
 | `sources.fileNames`          | `['.gitignore']`  | Names of the ignore files, like `['.gitignore', '.prettierignore']`.                                  |
 | `sources.files`              | `[]`              | Paths of more ignore files, like `['.eslintignore']`, read even in directories that aren't searched.  |

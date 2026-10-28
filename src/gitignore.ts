@@ -18,7 +18,7 @@ import type {GitRepository} from './repository.ts';
 
 export type GitignoreSourceType =
   /** The file set by git's `core.excludesFile` option, or its default, `~/.config/git/ignore` */
-  | 'excludes-file'
+  | 'global-ignore-file'
   /** `$GIT_DIR/info/exclude` */
   | 'info-exclude'
   /** A `.gitignore` file, or another one from `sources.fileNames` or `sources.files` */
@@ -201,7 +201,7 @@ export const createGitignoreBuilder = ({
   isCaseInsensitive,
 }: GitignoreBuilderOptions) => {
   const fileSources: FileSource[] = [];
-  // `excludes-file` and `info-exclude`
+  // `global-ignore-file` and `info-exclude`
   const baseSources: FileSource[] = [];
   // Keys are directory keys
   const sourcesByDirectory = new Map<string, FileSource[]>();
