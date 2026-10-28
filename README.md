@@ -40,7 +40,7 @@ pnpm i gitignore-reader-x
 
 Replace `pnpm i` with the installation command of your package manager.
 
-Node.js 22.23.1+, 24.18.0+ or 26.4.0+ is required.
+Node.js 22+ is required.
 
 ### ESLint
 

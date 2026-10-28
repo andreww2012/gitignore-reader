@@ -33,6 +33,9 @@ export default eslintConfig({
     },
     nodeDependencies: {
       enforceAbsoluteVersion: 'always',
+      overrides: {
+        'node-dependencies/compat-engines': [2, {devDependencies: false}],
+      },
     },
     unicorn: {
       overrides: {
