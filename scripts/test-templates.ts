@@ -25,7 +25,7 @@ if (head !== COMMIT) {
 
 // A direct dependency, so it's always there
 const VITEST_PATH = path.resolve('node_modules/vitest/vitest.mjs');
-execFileSync(process.execPath, [VITEST_PATH, 'run', 'test/templates.test.ts'], {
+execFileSync(process.execPath, [VITEST_PATH, 'run', 'test/templates/'], {
   stdio: 'inherit',
   env: {...process.env, GITIGNORE_TEMPLATES_DIRECTORY: DIRECTORY},
 });

@@ -5,14 +5,21 @@ import path from 'node:path';
 import {arrayWithoutFalsy} from 'utilery/array';
 import {mapTimes} from 'utilery/function';
 import {toForwardSlashes} from 'utilery/path';
-import {readGitignoreSync} from '../src/index.ts';
-import {compareWithCspell, compareWithEslint, compareWithGit, createFixture} from './utils.ts';
+import {readGitignoreSync} from '../../src/index.ts';
+import {
+  compareWithCspell,
+  compareWithEslint,
+  compareWithGit,
+  createFixture,
+  findFilesCheckableByCspell,
+} from '../utils.ts';
 
 const TEMPLATES_DIRECTORY = process.env.GITIGNORE_TEMPLATES_DIRECTORY;
 
 const MAX_PATHS_PER_TEMPLATE = 1500;
-const TEMPLATE_TIMEOUT_MS = 60_000;
-const ALL_TEMPLATES_TIMEOUT_MS = 600_000;
+export const TEMPLATE_TIMEOUT_MS = 60_000;
+// The templates are split between the shard files, which run in parallel
+const SHARD_COUNT = 2;
 const STAR_FILLINGS = ['', 'x', 'ab.c'] as const;
 const ANY_CHARS = ['q', '.', 'Z'] as const;
 const CHARS_OUTSIDE_CLASS = ['q', 'Z', '9', '_', '~'] as const;
@@ -28,7 +35,6 @@ const SEGMENT_PART_REGEX = /\\(.)|(\*+)|(\?)|\[(\]?[^\]]*)\]|(.)/gsu;
 const GLOBSTAR_REGEX = /^\*{2,}$/;
 const ASCII_LETTER_REGEX = /[a-z]/i;
 const LINE_BREAK_REGEX = /\r?\n/;
-const GITIGNORE_EXTENSION_REGEX = /\.gitignore$/;
 const POSIX_CLASS_EXAMPLES: Readonly<Record<string, string>> = Object.freeze({
   alnum: 'a',
   alpha: 'b',
@@ -48,14 +54,24 @@ interface CandidatePath {
   isDirectory: boolean;
 }
 
-const listTemplates = (directory: string) =>
-  fs
-    .readdirSync(directory, {recursive: true, withFileTypes: true})
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.gitignore'))
-    .map((entry) =>
-      toForwardSlashes(path.relative(directory, path.join(entry.parentPath, entry.name))),
-    )
-    .toSorted();
+export const hasTemplates = TEMPLATES_DIRECTORY != null;
+
+const templatesDirectory = TEMPLATES_DIRECTORY || '';
+
+export const templates = hasTemplates
+  ? fs
+      .readdirSync(templatesDirectory, {recursive: true, withFileTypes: true})
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.gitignore'))
+      .map((entry) =>
+        toForwardSlashes(
+          path.relative(templatesDirectory, path.join(entry.parentPath, entry.name)),
+        ),
+      )
+      .toSorted()
+  : [];
+
+export const readTemplate = (template: string) =>
+  fs.readFileSync(path.join(templatesDirectory, template), 'utf8');
 
 /** Picks a character the class matches (or doesn't match, if negated) */
 const instantiateClass = (body: string, variant: number) => {
@@ -132,11 +148,15 @@ const createCandidatePaths = (rule: string): CandidatePath[] => {
   });
 };
 
-const getRules = (content: string) =>
-  content.split(LINE_BREAK_REGEX).filter((line) => line.trim().length > 0 && !line.startsWith('#'));
+/** Paths that match the rules of the template content, and some that almost do */
+export const createCandidatePathsForContent = (content: string) =>
+  content
+    .split(LINE_BREAK_REGEX)
+    .filter((line) => line.trim().length > 0 && !line.startsWith('#'))
+    .flatMap(createCandidatePaths);
 
 /** Creates the paths under the directory, skipping the ones that conflict with created ones */
-const createPaths = (root: string, candidates: readonly CandidatePath[], limit: number) => {
+export const createPaths = (root: string, candidates: readonly CandidatePath[], limit: number) => {
   // Lowercased: the file system may be case-insensitive
   const types = new Map<string, 'directory' | 'file'>();
   let createdCount = 0;
@@ -185,95 +205,66 @@ const createPaths = (root: string, candidates: readonly CandidatePath[], limit: 
   }
 };
 
-describe.runIf(TEMPLATES_DIRECTORY != null)('github/gitignore templates', () => {
-  const templatesDirectory = TEMPLATES_DIRECTORY || '';
-  const templates = TEMPLATES_DIRECTORY == null ? [] : listTemplates(templatesDirectory);
-  const readTemplate = (template: string) =>
-    fs.readFileSync(path.join(templatesDirectory, template), 'utf8');
+/** The templates of the shard, from 1 to `SHARD_COUNT` */
+export const getTemplateShard = (shard: number) =>
+  templates.filter((_, index) => index % SHARD_COUNT === shard - 1);
 
-  it('has the templates', () => {
-    expect(templates.length).toBeGreaterThan(100);
+/** Tests the template on its own */
+export const testTemplate = async (template: string) => {
+  const content = readTemplate(template);
+  const candidates = createCandidatePathsForContent(content);
+  // The same rules at the root and deeper, so that both apply to the deeper paths
+  const fixture = createFixture({
+    '.gitignore': content,
+    deep: {inner: {'.gitignore': content}},
   });
+  createPaths(fixture.root, candidates, MAX_PATHS_PER_TEMPLATE);
+  createPaths(path.join(fixture.root, 'deep', 'inner'), candidates, MAX_PATHS_PER_TEMPLATE / 3);
 
-  it.each(templates)(
-    '%s',
-    async (template) => {
-      const content = readTemplate(template);
-      const candidates = getRules(content).flatMap(createCandidatePaths);
-      // The same rules at the root and deeper, so that both apply to the deeper paths
-      const fixture = createFixture({
-        '.gitignore': content,
-        deep: {inner: {'.gitignore': content}},
-      });
-      createPaths(fixture.root, candidates, MAX_PATHS_PER_TEMPLATE);
-      createPaths(path.join(fixture.root, 'deep', 'inner'), candidates, MAX_PATHS_PER_TEMPLATE / 3);
-
-      const comparison = compareWithGit(
-        fixture,
-        readGitignoreSync({cwd: fixture.root, env: fixture.env}),
-      );
-
-      expect(comparison.mismatches).toStrictEqual([]);
-
-      const isDeepIgnored = comparison.gitResults.some(
-        (result, index) => result.ignored && comparison.entries[index]?.path === 'deep',
-      );
-      const baseDirectories = [
-        fixture.root,
-        ...(isDeepIgnored ? [] : [path.join(fixture.root, 'deep')]),
-      ];
-      const [eslintMismatches, cspellMismatches] = await Promise.all([
-        Promise.all(baseDirectories.map((cwd) => compareWithEslint(fixture, cwd, comparison))),
-        Promise.all(baseDirectories.map((cwd) => compareWithCspell(fixture, cwd, comparison))),
-      ]);
-
-      expect(eslintMismatches.flat()).toStrictEqual([]);
-      expect(cspellMismatches.flat()).toStrictEqual([]);
-
-      fixture.git(['config', 'core.ignoreCase', 'true']);
-      const caseInsensitiveComparison = compareWithGit(
-        fixture,
-        readGitignoreSync({cwd: fixture.root, env: fixture.env}),
-      );
-
-      expect(caseInsensitiveComparison.mismatches).toStrictEqual([]);
-      await expect(
-        compareWithCspell(fixture, fixture.root, caseInsensitiveComparison),
-      ).resolves.toStrictEqual([]);
-    },
-    TEMPLATE_TIMEOUT_MS,
+  const comparison = compareWithGit(
+    fixture,
+    readGitignoreSync({cwd: fixture.root, env: fixture.env}),
   );
 
-  it(
-    'all of them at once, with every source',
-    async () => {
-      const fixture = createFixture();
-      const contents = templates.map((template) => ({
-        directory: path.join('t', template.replace(GITIGNORE_EXTENSION_REGEX, '')),
-        content: readTemplate(template),
-      }));
-      contents.forEach(({directory, content}) => {
-        fixture.write({[path.join(directory, '.gitignore')]: content});
-        createPaths(
-          path.join(fixture.root, directory),
-          getRules(content).flatMap(createCandidatePaths),
-          150,
-        );
-      });
-      fixture.write({'.gitignore': readTemplate('Node.gitignore')});
-      fixture.writeInfoExclude(readTemplate(path.join('Global', 'JetBrains.gitignore')));
-      fixture.writeGlobalIgnore(readTemplate(path.join('Global', 'macOS.gitignore')));
+  expect(comparison.mismatches).toStrictEqual([]);
 
-      const comparison = compareWithGit(
-        fixture,
-        readGitignoreSync({cwd: fixture.root, env: fixture.env, sources: {globalIgnoreFile: true}}),
-      );
-
-      expect(comparison.entries.length).toBeGreaterThan(10_000);
-      expect(comparison.mismatches).toStrictEqual([]);
-      await expect(compareWithEslint(fixture, fixture.root, comparison)).resolves.toStrictEqual([]);
-      await expect(compareWithCspell(fixture, fixture.root, comparison)).resolves.toStrictEqual([]);
-    },
-    ALL_TEMPLATES_TIMEOUT_MS,
+  const isDeepIgnored = comparison.gitResults.some(
+    (result, index) => result.ignored && comparison.entries[index]?.path === 'deep',
   );
-});
+  const baseDirectories = [
+    fixture.root,
+    ...(isDeepIgnored ? [] : [path.join(fixture.root, 'deep')]),
+  ];
+  // cspell's results without the patterns don't depend on the rules, so the case-insensitive check
+  // reuses them
+  const checkableByCspell = new Map(
+    baseDirectories.map((cwd) => [cwd, findFilesCheckableByCspell(fixture, cwd)]),
+  );
+  const [eslintMismatches, cspellMismatches] = await Promise.all([
+    Promise.all(baseDirectories.map((cwd) => compareWithEslint(fixture, cwd, comparison))),
+    Promise.all(
+      baseDirectories.map((cwd) =>
+        compareWithCspell(fixture, cwd, comparison, checkableByCspell.get(cwd)),
+      ),
+    ),
+  ]);
+
+  expect(eslintMismatches.flat()).toStrictEqual([]);
+  expect(cspellMismatches.flat()).toStrictEqual([]);
+
+  fixture.git(['config', 'core.ignoreCase', 'true']);
+  const caseInsensitiveComparison = compareWithGit(
+    fixture,
+    readGitignoreSync({cwd: fixture.root, env: fixture.env}),
+  );
+
+  expect(caseInsensitiveComparison.mismatches).toStrictEqual([]);
+  await expect(
+    compareWithCspell(
+      fixture,
+      fixture.root,
+      caseInsensitiveComparison,
+      checkableByCspell.get(fixture.root),
+    ),
+  ).resolves.toStrictEqual([]);
+};

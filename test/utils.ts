@@ -293,23 +293,31 @@ const findFilesCheckedByCspell = async (
 };
 
 /**
+ * The files cspell checks in `cwd` without the patterns: it skips some on its own, like the ones in
+ * `node_modules`
+ */
+export const findFilesCheckableByCspell = (fixture: Fixture, cwd: string) =>
+  findFilesCheckedByCspell(fixture, cwd, []);
+
+/**
  * cspell must check the files that git doesn't ignore, and nothing in `.git`, with the patterns of
  * `toCspellIgnorePaths` read for `cwd`.
+ * Pass the result of `findFilesCheckableByCspell` to reuse it while the files stay the same.
  * Returns the mismatches
  */
 export const compareWithCspell = async (
   fixture: Fixture,
   cwd: string,
   {entries, gitResults}: ReturnType<typeof compareWithGit>,
+  checkablePathsPromise = findFilesCheckableByCspell(fixture, cwd),
 ) => {
   const ignorePaths = readGitignoreSync({
     cwd,
     env: fixture.env,
     sources: {globalIgnoreFile: true},
   }).toCspellIgnorePaths();
-  // Without the patterns: cspell skips some files on its own, like the ones in `node_modules`
   const [checkablePaths, checkedPaths] = await Promise.all([
-    findFilesCheckedByCspell(fixture, cwd, []),
+    checkablePathsPromise,
     findFilesCheckedByCspell(fixture, cwd, ignorePaths),
   ]);
   const cwdPrefix = toForwardSlashes(path.relative(fixture.root, cwd));
