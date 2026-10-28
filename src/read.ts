@@ -23,10 +23,12 @@ import {type GitRepository, discoverRepository} from './repository.ts';
 export interface GitignoreSourcesOptions {
   /**
    * The global ignore file, git's `core.excludesFile` option.
+   * It's not read by default, since its rules are not specific to the project: they apply to every
+   * repository of the user and are usually about editor and OS files.
    * `true` reads git config files to find it (falling back to `$XDG_CONFIG_HOME/git/ignore` or
    * `~/.config/git/ignore`, like git), a string or a URL sets the path (relative to `cwd`).
    * Only used inside a git repository
-   * @default true
+   * @default false
    */
   globalIgnoreFile?: boolean | string | URL;
 
@@ -313,7 +315,7 @@ function* searchNestedIgnoreFiles(context: SearchContext): QuansyncGenerator<voi
 function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGenerator<Gitignore> {
   const {env = process.env, sources = {}} = options;
   const {
-    globalIgnoreFile = true,
+    globalIgnoreFile = false,
     infoExclude = true,
     fileNames = DEFAULT_FILE_NAMES,
     files = [],

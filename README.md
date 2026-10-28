@@ -3,7 +3,7 @@
 Tells which files git ignores, without running git.
 It reads the rules from every source git does, matches them exactly like git, and can convert them into ESLint's `ignores`.
 
-- 📚 **Every source**: nested and parent `.gitignore` files, `.git/info/exclude`, the global ignore file, submodules.
+- 📚 **Every source**: nested and parent `.gitignore` files, `.git/info/exclude`, submodules and, if you want, the global ignore file.
 - 🎯 **Same results as git**: tested against `git check-ignore` on thousands of random & popular repositories.
 - 🧩 **Works with any tool**: check paths with `isIgnored`, or get patterns for ESLint.
 - ⚡ **Fast**: never looks into ignored directories and reads files concurrently.
@@ -23,7 +23,7 @@ It reads the rules from every source git does, matches them exactly like git, an
 | Nested `.gitignore` files                | Yes                | Opt-in                         | Yes                | No          |
 | Parent `.gitignore` files                | Yes                | The closest one only           | Yes                | No          |
 | `.git/info/exclude`                      | Yes                | Partly [^1]                    | No                 | No          |
-| Global ignore file (`core.excludesFile`) | Yes                | No                             | No                 | No          |
+| Global ignore file (`core.excludesFile`) | Opt-in             | No                             | No                 | No          |
 | Submodules and nested repositories       | Yes                | Partly [^1]                    | No                 | No          |
 | Checks if a path is ignored              | Yes                | No                             | Yes                | Yes [^2]    |
 | Patterns for ESLint                      | Yes                | Yes                            | No                 | No          |
@@ -98,7 +98,7 @@ Paths can be absolute or relative to `cwd`.
 
 From the lowest precedence to the highest:
 
-1. The global ignore file: `core.excludesFile` from git config files (with their includes), or `~/.config/git/ignore` if it's not set.
+1. The global ignore file, only with `sources.globalIgnoreFile`: `core.excludesFile` from git config files (with their includes), or `~/.config/git/ignore` if it's not set.
 2. `$GIT_DIR/info/exclude`.
 3. `.gitignore` files from the root of the repository down to `cwd`, and in every subdirectory of `cwd` that is not ignored.
 4. Submodules and nested repositories: git doesn't ignore them, but their files belong to other repositories.
@@ -114,7 +114,7 @@ Relative paths in the options are resolved against `cwd`, and `cwd` itself again
 | `cwd`                        | `process.cwd()`   | The directory to read the rules for. Paths and ESLint patterns are relative to it.                    |
 | `allowMissingCwd`            | `false`           | Whether `cwd` may be missing. Otherwise, a missing `cwd` throws, so that a typo doesn't go unnoticed. |
 | `root`                       | The repository    | The topmost directory to read ignore files in. Can't be above the root of the repository.             |
-| `sources.globalIgnoreFile`   | `true`            | The global ignore file: `true` finds it like git does, a path sets it, `false` turns it off.          |
+| `sources.globalIgnoreFile`   | `false`           | The global ignore file: `true` finds it like git does, a path sets it.                                |
 | `sources.infoExclude`        | `true`            | Whether to read `$GIT_DIR/info/exclude`.                                                              |
 | `sources.fileNames`          | `['.gitignore']`  | Names of the ignore files, like `['.gitignore', '.prettierignore']`.                                  |
 | `sources.files`              | `[]`              | Paths of more ignore files, like `['.eslintignore']`, read even in directories that aren't searched.  |
@@ -137,6 +137,8 @@ Relative paths in the options are resolved against `cwd`, and `cwd` itself again
 
 ## Differences from git
 
+- The global ignore file is not read by default, since its rules are not specific to the project: they apply to every repository of the user and are usually about editor and OS files.
+  Set `sources.globalIgnoreFile` to `true` to read it like git does.
 - Git never ignores files that are already tracked, but the index isn't read here: the results are the same as from `git check-ignore --no-index`.
 - The system git config is read from `/etc/gitconfig`, where Linux distributions and Apple's git keep it.
   Other builds keep it elsewhere, for example Homebrew's git in `/opt/homebrew/etc/gitconfig`: pass its path as `GIT_CONFIG_SYSTEM` in `env`.

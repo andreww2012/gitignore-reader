@@ -207,7 +207,7 @@ export const compareWithEslint = async (
   cwd: string,
   {entries, gitResults}: ReturnType<typeof compareWithGit>,
 ) => {
-  const gitignore = readGitignoreSync({cwd, env: fixture.env});
+  const gitignore = readGitignoreSync({cwd, env: fixture.env, sources: {globalIgnoreFile: true}});
   const ignores = gitignore.toEslintIgnores();
   // The patterns only differ from git there, as documented
   const hasByteWildcards = gitignore.sources.some((source) =>

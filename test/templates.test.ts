@@ -258,7 +258,7 @@ describe.runIf(TEMPLATES_DIRECTORY != null)('github/gitignore templates', () => 
 
       const comparison = compareWithGit(
         fixture,
-        readGitignoreSync({cwd: fixture.root, env: fixture.env}),
+        readGitignoreSync({cwd: fixture.root, env: fixture.env, sources: {globalIgnoreFile: true}}),
       );
 
       expect(comparison.entries.length).toBeGreaterThan(10_000);

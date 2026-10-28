@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {toForwardSlashes} from 'utilery/path';
-import {type ReadGitignoreOptions, readGitignore, readGitignoreSync} from '../src/index.ts';
+import {
+  type GitignoreSourcesOptions,
+  type ReadGitignoreOptions,
+  readGitignore,
+  readGitignoreSync,
+} from '../src/index.ts';
 import {type Fixture, createFixture, gitCheckIgnore, symlinkOrSkip} from './utils.ts';
 
 describe('sources', () => {
@@ -18,7 +23,11 @@ describe('sources', () => {
     fixture.writeGlobalIgnore('.DS_Store\n');
 
     const cwd = path.join(fixture.root, 'packages', 'a');
-    const gitignore = await readGitignore({cwd, env: fixture.env});
+    const gitignore = await readGitignore({
+      cwd,
+      env: fixture.env,
+      sources: {globalIgnoreFile: true},
+    });
 
     expect(gitignore.cwd).toBe(cwd);
     expect(gitignore.repository).toStrictEqual({
@@ -147,25 +156,17 @@ describe('sources', () => {
     ]);
   });
 
-  it('`infoExclude: false` and `globalIgnoreFile: false`', () => {
+  it('`infoExclude` and `globalIgnoreFile`', () => {
     const fixture = createFixture();
     fixture.writeInfoExclude('a\n');
     fixture.writeGlobalIgnore('b\n');
+    const getEslintIgnores = (sources: GitignoreSourcesOptions) =>
+      readGitignoreSync({cwd: fixture.root, env: fixture.env, sources}).toEslintIgnores();
 
-    expect(
-      readGitignoreSync({
-        cwd: fixture.root,
-        env: fixture.env,
-        sources: {infoExclude: false},
-      }).toEslintIgnores(),
-    ).toStrictEqual(['**/b']);
-    expect(
-      readGitignoreSync({
-        cwd: fixture.root,
-        env: fixture.env,
-        sources: {globalIgnoreFile: false},
-      }).toEslintIgnores(),
-    ).toStrictEqual(['**/a']);
+    // The global ignore file isn't read by default
+    expect(getEslintIgnores({})).toStrictEqual(['**/a']);
+    expect(getEslintIgnores({globalIgnoreFile: true})).toStrictEqual(['**/b', '**/a']);
+    expect(getEslintIgnores({globalIgnoreFile: true, infoExclude: false})).toStrictEqual(['**/b']);
   });
 });
 
@@ -179,7 +180,7 @@ const getGlobalIgnoreFilePath = (
   fixture: Fixture,
   env: ReadGitignoreOptions['env'] = fixture.env,
 ) =>
-  readGitignoreSync({cwd: fixture.root, env}).sources.find(
+  readGitignoreSync({cwd: fixture.root, env, sources: {globalIgnoreFile: true}}).sources.find(
     (source) => source.type === 'global-ignore-file',
   )?.path;
 
@@ -285,7 +286,13 @@ describe('global ignore file', () => {
     fixture.write({'a.swp': ''});
 
     expect(fixture.git(['check-ignore', '-v', 'a.swp'])).toContain('.gitignore_global:1:*.swp');
-    expect(readGitignoreSync({cwd: fixture.root, env: fixture.env}).isIgnored('a.swp')).toBe(true);
+    expect(
+      readGitignoreSync({
+        cwd: fixture.root,
+        env: fixture.env,
+        sources: {globalIgnoreFile: true},
+      }).isIgnored('a.swp'),
+    ).toBe(true);
   });
 });
 
@@ -536,12 +543,7 @@ describe('matching', () => {
     expect(readGitignoreSync({cwd: fixture.root, env: fixture.env}).ignoreCase).toBe(false);
 
     fixture.git(['config', 'core.ignoreCase', 'true']);
-    const gitignore = readGitignoreSync({
-      cwd: fixture.root,
-      env: fixture.env,
-      // The config must be read even without the global ignore file
-      sources: {globalIgnoreFile: false},
-    });
+    const gitignore = readGitignoreSync({cwd: fixture.root, env: fixture.env});
 
     expect(gitignore.ignoreCase).toBe(true);
     expect(gitignore.isIgnored('docs/a.md')).toBe(true);
@@ -672,19 +674,21 @@ describe('worktree config', () => {
       path.join(fixture.root, '.git', 'config.worktree'),
       `[core]\nexcludesFile = ${JSON.stringify(path.join(fixture.home, 'from-worktree'))}\n`,
     );
+    const getEslintIgnores = () =>
+      readGitignoreSync({
+        cwd: fixture.root,
+        env: fixture.env,
+        sources: {globalIgnoreFile: true},
+      }).toEslintIgnores();
 
-    expect(
-      readGitignoreSync({cwd: fixture.root, env: fixture.env}).toEslintIgnores(),
-    ).toStrictEqual([]);
+    expect(getEslintIgnores()).toStrictEqual([]);
 
     fs.appendFileSync(
       path.join(fixture.root, '.git', 'config'),
       '[extensions]\n\tworktreeConfig\n',
     );
 
-    expect(
-      readGitignoreSync({cwd: fixture.root, env: fixture.env}).toEslintIgnores(),
-    ).toStrictEqual(['**/x']);
+    expect(getEslintIgnores()).toStrictEqual(['**/x']);
   });
 });
 
@@ -776,6 +780,9 @@ describe('sources.files', () => {
   });
 });
 
+const isLogIgnored = (cwd: string, env: Fixture['env']) =>
+  readGitignoreSync({cwd, env, sources: {globalIgnoreFile: true}}).isIgnored('a.log');
+
 describe('includeIf "gitdir:"', () => {
   it('`./` is relative to the real path of the config file', (context) => {
     const fixture = createFixture({'a.log': ''});
@@ -787,7 +794,7 @@ describe('includeIf "gitdir:"', () => {
     fs.writeFileSync(path.join(fixture.home, 'x'), '*.log\n');
 
     expect(fixture.git(['check-ignore', 'a.log'])).toBe('a.log\n');
-    expect(readGitignoreSync({cwd: fixture.root, env: fixture.env}).isIgnored('a.log')).toBe(true);
+    expect(isLogIgnored(fixture.root, fixture.env)).toBe(true);
   });
 
   it('`~/` is the real path of the home directory', (context) => {
@@ -808,7 +815,7 @@ describe('includeIf "gitdir:"', () => {
     expect(fixture.git(['check-ignore', '--no-index', 'a.log'], {cwd: project, env})).toBe(
       'a.log\n',
     );
-    expect(readGitignoreSync({cwd: project, env}).isIgnored('a.log')).toBe(true);
+    expect(isLogIgnored(project, env)).toBe(true);
   });
 
   it('matches the real path of the git directory too', (context) => {
@@ -823,7 +830,7 @@ describe('includeIf "gitdir:"', () => {
     fs.writeFileSync(path.join(fixture.home, 'included.gitconfig'), '[core]\nexcludesFile = ~/x\n');
     fs.writeFileSync(path.join(fixture.home, 'x'), '*.log\n');
 
-    expect(readGitignoreSync({cwd: link, env: fixture.env}).isIgnored('a.log')).toBe(true);
+    expect(isLogIgnored(link, fixture.env)).toBe(true);
     expect(fixture.git(['check-ignore', 'a.log'], {cwd: link})).toBe('a.log\n');
   });
 });

@@ -209,7 +209,7 @@ const runScenario = async (seed: number) => {
   // `ignoreCase` comes from `core.ignoreCase`
   const comparison = compareWithGit(
     fixture,
-    readGitignoreSync({cwd: fixture.root, env: fixture.env}),
+    readGitignoreSync({cwd: fixture.root, env: fixture.env, sources: {globalIgnoreFile: true}}),
   );
 
   // The patterns are always case-sensitive
