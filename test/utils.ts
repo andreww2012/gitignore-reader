@@ -88,7 +88,12 @@ export const createFixture = (tree: FileTree = {}, {gitInit = true} = {}): Fixtu
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: path.join(home, '.gitconfig'),
   };
-  const git: Fixture['git'] = (gitArguments, {cwd = root, input, env: gitEnv = env} = {}) =>
+  const git: Fixture['git'] = (
+    gitArguments,
+    // The type works around a TypeScript 7.1 bug that loses it here:
+    // https://github.com/microsoft/TypeScript/issues/64974
+    {cwd = root, input, env: gitEnv = env}: Parameters<Fixture['git']>[1] = {},
+  ) =>
     // eslint-disable-next-line sonar/no-os-command-from-path -- the tests need the installed git
     execFileSync('git', gitArguments, {
       cwd,
