@@ -479,6 +479,8 @@ describe('matching', () => {
     expect(gitignore.isIgnored('build/')).toBe(true);
     expect(gitignore.isIgnored('build', true)).toBe(true);
     expect(gitignore.isIgnored(`build${path.sep}`)).toBe(true);
+    expect(gitignore.isIgnored(pathToFileURL(path.join(root, 'build')))).toBe(false);
+    expect(gitignore.isIgnored(pathToFileURL(path.join(root, 'build', './')))).toBe(true);
   });
 
   it('paths outside of the repository and the repository itself are not ignored', () => {

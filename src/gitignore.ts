@@ -172,9 +172,6 @@ const findInSource = (
 
 const hasTrailingSeparator = (value: string) => value.endsWith('/') || value.endsWith(path.sep);
 
-const isDirectoryPath = (value: string | URL, isDirectory: boolean | undefined) =>
-  isDirectory ?? (typeof value === 'string' && hasTrailingSeparator(value));
-
 /** A rule matched, and it isn't a negated one */
 const isIgnoringMatch = (match: Match | null | undefined) => match != null && !match.rule.negated;
 
@@ -274,8 +271,7 @@ export const createGitignoreBuilder = ({
   const cwdDirectory = toPosixPath(path.relative(base, cwd));
   const cwdPrefix = cwdDirectory.length === 0 ? '' : `${cwdDirectory}/`;
 
-  const toRelative = (value: string | URL) => {
-    const inputPath = toPath(value);
+  const toRelative = (inputPath: string) => {
     const trimmedPath = hasTrailingSeparator(inputPath) ? inputPath.slice(0, -1) : inputPath;
     // `path.resolve` and `path.relative` take much more time than matching itself
     if (path.isAbsolute(trimmedPath)) {
@@ -295,14 +291,15 @@ export const createGitignoreBuilder = ({
 
   /** Also returns the relative path as a byte string, to report the matched path */
   const checkPath = (value: string | URL, isDirectory: boolean | undefined) => {
-    const relativePath = toRelative(value);
+    const inputPath = toPath(value);
+    const relativePath = toRelative(inputPath);
     if (relativePath == null) {
       return undefined;
     }
     const pathBytes = toByteString(relativePath);
     const result = checkKey(
       normalizeCase(pathBytes, isCaseInsensitive),
-      isDirectoryPath(value, isDirectory),
+      isDirectory ?? hasTrailingSeparator(inputPath),
     );
     return result && {...result, pathBytes};
   };
