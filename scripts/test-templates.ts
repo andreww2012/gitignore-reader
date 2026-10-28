@@ -16,7 +16,8 @@ fs.mkdirSync(DIRECTORY, {recursive: true});
 if (!fs.existsSync(path.join(DIRECTORY, '.git'))) {
   git(['init', '--quiet']);
 }
-const [, head] = attempt(() => git(['rev-parse', 'HEAD']));
+// Without these flags, git prints an error when the repo has no commits yet
+const [, head] = attempt(() => git(['rev-parse', '--verify', '--quiet', 'HEAD']));
 if (head !== COMMIT) {
   git(['fetch', '--quiet', '--depth', '1', REPOSITORY_URL, COMMIT]);
   git(['checkout', '--quiet', '--force', 'FETCH_HEAD']);
