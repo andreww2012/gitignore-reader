@@ -3,6 +3,7 @@ import {once} from 'utilery/function';
 import {mapGetOrInsert, mapGetOrInsertComputed} from 'utilery/map';
 import {isPathInside} from 'utilery/server';
 import {ensureSuffix, substringAfterLast} from 'utilery/string';
+import {toCspellIgnorePaths} from './cspell-ignore-paths.ts';
 import {toEslintIgnores} from './eslint-ignores.ts';
 import {getParentDirectory, getPathInDirectory, toPath, toPosixPath} from './path.ts';
 import {
@@ -84,6 +85,17 @@ export interface Gitignore {
    * The patterns are always case-sensitive, like ESLint itself, even if `ignoreCase` is on
    */
   toEslintIgnores: () => string[];
+
+  /**
+   * Lists the ignored files and directories in `cwd` as patterns for cspell's `ignorePaths`,
+   * relative to `cwd`.
+   * cspell skips negated patterns there, so the rules can't be converted: the paths they ignore
+   * are listed instead, without the contents of ignored directories.
+   * `.git` is listed too: git never looks into it, but cspell would.
+   * The directories are read synchronously on every call, except the ignored ones.
+   * Like with the ESLint patterns, it doesn't matter if `cwd` is ignored itself
+   */
+  toCspellIgnorePaths: () => string[];
 }
 
 interface RuleLookup {
@@ -254,6 +266,10 @@ export const createGitignoreBuilder = ({
   const matchDirectory = (key: string) =>
     mapGetOrInsertComputed(directoryCache, key, findDirectoryMatch);
 
+  /** Doesn't check the parents, but caches the result for directories */
+  const matchEntry = (key: string, isDirectory: boolean) =>
+    isDirectory ? matchDirectory(key) : findMatch(key, false);
+
   /** Checks the parents too */
   const checkKey = (key: string, isDirectory: boolean) => {
     for (
@@ -266,7 +282,7 @@ export const createGitignoreBuilder = ({
         return {match, matchedLength: slashIndex};
       }
     }
-    const match = isDirectory ? matchDirectory(key) : findMatch(key, false);
+    const match = matchEntry(key, isDirectory);
     return match ? {match, matchedLength: key.length} : undefined;
   };
 
@@ -409,6 +425,10 @@ export const createGitignoreBuilder = ({
         };
       },
       toEslintIgnores: () => [...getEslintIgnores()],
+      toCspellIgnorePaths: () =>
+        toCspellIgnorePaths(cwd, (pathInCwd, isDirectory) =>
+          isIgnoringMatch(matchEntry(toKey(`${cwdPrefix}${pathInCwd}`), isDirectory)),
+        ),
     }),
   };
 };

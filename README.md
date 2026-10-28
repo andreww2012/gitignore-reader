@@ -1,18 +1,19 @@
 # gitignore-reader-x [![npm](https://img.shields.io/npm/v/gitignore-reader-x)](https://npmx.dev/gitignore-reader-x)
 
 Tells which files git ignores, without running git.
-It reads the rules from every source git does, matches them exactly like git, and can convert them into ESLint's `ignores`.
+It reads the rules from every source git does, matches them exactly like git, and gives patterns for [ESLint]'s `ignores` and [cspell]'s `ignorePaths`.
 
 - 📚 **Every source**: nested and parent `.gitignore` files, `.git/info/exclude`, submodules and, if you want, the global ignore file.
 - 🎯 **Same results as git**: tested against `git check-ignore` on thousands of random & popular repositories.
-- 🧩 **Works with any tool**: check paths with `isIgnored`, or get patterns for ESLint.
+- 🧩 **Works with any tool**: check paths with `isIgnored`, or get patterns for ESLint and cspell.
 - ⚡ **Fast**: never looks into ignored directories and reads files concurrently.
 - 🔁 **Sync and async** APIs are provided.
 
 ## Use cases
 
 - **ESLint configs**: ignore exactly what git ignores, including nested `.gitignore` files and the root one when ESLint runs in a monorepo package.
-- **Linters, formatters, spell checkers and other tools** that should skip ignored files: call `isIgnored` for each file.
+- **cspell configs**: skip exactly what git ignores, unlike cspell's own `useGitignore` option.
+- **Other linters, formatters and tools** that should skip ignored files: call `isIgnored` for each file.
 - **File walkers and watchers**: skip ignored directories without reading them.
 - **Debugging**: find out which rule in which file ignores a path, like `git check-ignore --verbose` does.
 
@@ -27,6 +28,7 @@ It reads the rules from every source git does, matches them exactly like git, an
 | Submodules and nested repositories       | Yes                | Partly [^1]                    | No                 | No          |
 | Checks if a path is ignored              | Yes                | No                             | Yes                | Yes [^2]    |
 | Patterns for ESLint                      | Yes                | Yes                            | No                 | No          |
+| Works with cspell                        | Yes                | No                             | Built in [^6]      | No          |
 | Same results as git                      | Yes [^3]           | Not always [^1]                | Not always [^4]    | Almost [^5] |
 
 It's fast too: ignored directories are never searched, files are read concurrently, and most rules are looked up instead of being tested one by one.
@@ -59,7 +61,7 @@ export default defineConfig([
 ]);
 ```
 
-The patterns are made for ESLint: other tools apply ignore patterns differently, so use `isIgnored` with them.
+The patterns are made for ESLint: other tools apply ignore patterns differently, so use `isIgnored` with them, or the cspell patterns with cspell.
 
 The patterns are always case-sensitive, since ESLint matches paths case-sensitively.
 Git doesn't on macOS and Windows (it sets `core.ignoreCase` there), so a file named `Dist` is ignored by the rule `dist` in git and by `isIgnored`, but not in ESLint.
@@ -69,6 +71,31 @@ For example, `?.txt` doesn't match `é.txt` in git, since `é` takes two bytes.
 
 If you cache your config, hash the patterns to get a part of the cache key.
 They only change when a rule that matters for `cwd` changes, and their order doesn't depend on the file system.
+
+### cspell
+
+Use the directory of your cspell config as `cwd`, since cspell resolves `ignorePaths` relative to it.
+If the config is in a `.config` directory, use its parent, and if you set `globRoot`, use that.
+
+```ts
+// cspell.config.ts
+import type {CSpellSettings} from 'cspell';
+import {readGitignoreSync} from 'gitignore-reader-x';
+
+export default {
+  ignorePaths: readGitignoreSync({cwd: import.meta.dirname}).toCspellIgnorePaths(),
+} satisfies CSpellSettings;
+```
+
+cspell skips negated patterns like `!.env.example` in `ignorePaths`, so the rules can't be converted for it.
+Instead, the files and directories that git ignores are listed, and `.git` too.
+For that, the directories in `cwd` are read synchronously on every call, except the ignored ones.
+Since these are real paths, the results are the same as in git, even with `ignoreCase` and non-ASCII names.
+
+The list is made when cspell loads the config, so tools that keep running, like the VS Code extension, only skip new ignored files after the config is loaded again.
+cspell compares every file with every pattern, so it gets slower with thousands of ignored files outside of ignored directories.
+
+Don't turn on `useGitignore` too: it can ignore files that git doesn't.
 
 ### Checking paths
 
@@ -111,7 +138,7 @@ Relative paths in the options are resolved against `cwd`, and `cwd` itself again
 
 | Option                       | Default           | Description                                                                                           |
 | ---------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
-| `cwd`                        | `process.cwd()`   | The directory to read the rules for. Paths and ESLint patterns are relative to it.                    |
+| `cwd`                        | `process.cwd()`   | The directory to read the rules for. Paths and patterns are relative to it.                           |
 | `allowMissingCwd`            | `false`           | Whether `cwd` may be missing. Otherwise, a missing `cwd` throws, so that a typo doesn't go unnoticed. |
 | `root`                       | The repository    | The topmost directory to read ignore files in. Can't be above the root of the repository.             |
 | `sources.globalIgnoreFile`   | `false`           | The global ignore file: `true` finds it like git does, a path sets it.                                |
@@ -131,6 +158,7 @@ Relative paths in the options are resolved against `cwd`, and `cwd` itself again
   - `isIgnored(path, isDirectory?)`: tells if git would ignore the path.
   - `check(path, isDirectory?)`: the same, but also tells which rule decided it.
   - `toEslintIgnores()`: the rules as patterns for ESLint's `ignores`, relative to `cwd`.
+  - `toCspellIgnorePaths()`: the ignored files and directories as patterns for cspell's `ignorePaths`, relative to `cwd`.
   - `sources`: the files the rules come from, with the parsed rules.
   - `repository`: the git repository, if any.
   - `ignoreCase`: whether paths are matched case-insensitively.
@@ -156,9 +184,13 @@ Relative paths in the options are resolved against `cwd`, and `cwd` itself again
 [^1]: Reads `.git/info/exclude` and `.gitmodules` as if their paths were relative to `cwd`, not to the root of the repository.
 [^2]: Only for the rules you give it: it doesn't find or read any files.
 [^3]: Tested against `git check-ignore` on thousands of random repositories, on 190 popular ones (3.6 million paths) and on every template of [github/gitignore](https://github.com/github/gitignore), and the ESLint patterns by running ESLint on them.
+    The cspell patterns are tested by running cspell on the random repositories and the templates.
 [^4]: A `!` rule in a nested `.gitignore` can't re-include a path that a parent `.gitignore` ignores.
 [^5]: Differs from git in some edge cases, like `***`.
+[^6]: cspell uses it for its `useGitignore` option.
 
+[cspell]: https://cspell.org
 [cspell-gitignore]: https://npmx.dev/cspell-gitignore
+[ESLint]: https://eslint.org
 [eslint-config-flat-gitignore]: https://npmx.dev/eslint-config-flat-gitignore
 [ignore]: https://npmx.dev/ignore

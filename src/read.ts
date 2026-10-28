@@ -16,7 +16,14 @@ import {
   resolveConfigPath,
 } from './git-config.ts';
 import {type Gitignore, createGitignoreBuilder} from './gitignore.ts';
-import {getAncestors, isPathInsideOrSame, joinRelativePath, toPath, toPosixPath} from './path.ts';
+import {
+  DOT_GIT,
+  getAncestors,
+  isPathInsideOrSame,
+  joinRelativePath,
+  toPath,
+  toPosixPath,
+} from './path.ts';
 import {type GitRepository, discoverRepository} from './repository.ts';
 
 /** Which sources of the rules to read, and how */
@@ -92,7 +99,7 @@ export interface ReadGitignoreOptions {
    * (up to the root of the repository) and in its subdirectories.
    * It must exist, unless `allowMissingCwd` is set.
    * Relative paths in the other options and the ones given to the matcher are resolved against it,
-   * and `toEslintIgnores` returns patterns relative to it
+   * and the patterns for other tools are relative to it
    * @default process.cwd()
    */
   cwd?: string | URL;
@@ -138,7 +145,6 @@ export interface ReadGitignoreOptions {
 
 const DEFAULT_FILE_NAMES: readonly string[] = ['.gitignore'];
 
-const DOT_GIT = '.git';
 const BRANCH_REF_PREFIX = 'ref: refs/heads/';
 // The real path depends on how git was built, this is the most common one
 const DEFAULT_SYSTEM_CONFIG_PATHS: readonly string[] =

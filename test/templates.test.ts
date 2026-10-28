@@ -6,7 +6,7 @@ import {arrayWithoutFalsy} from 'utilery/array';
 import {mapTimes} from 'utilery/function';
 import {toForwardSlashes} from 'utilery/path';
 import {readGitignoreSync} from '../src/index.ts';
-import {compareWithEslint, compareWithGit, createFixture} from './utils.ts';
+import {compareWithCspell, compareWithEslint, compareWithGit, createFixture} from './utils.ts';
 
 const TEMPLATES_DIRECTORY = process.env.GITIGNORE_TEMPLATES_DIRECTORY;
 
@@ -218,20 +218,28 @@ describe.runIf(TEMPLATES_DIRECTORY != null)('github/gitignore templates', () => 
       const isDeepIgnored = comparison.gitResults.some(
         (result, index) => result.ignored && comparison.entries[index]?.path === 'deep',
       );
-      const eslintMismatches = await Promise.all(
-        [fixture.root, ...(isDeepIgnored ? [] : [path.join(fixture.root, 'deep')])].map((cwd) =>
-          compareWithEslint(fixture, cwd, comparison),
-        ),
-      );
+      const baseDirectories = [
+        fixture.root,
+        ...(isDeepIgnored ? [] : [path.join(fixture.root, 'deep')]),
+      ];
+      const [eslintMismatches, cspellMismatches] = await Promise.all([
+        Promise.all(baseDirectories.map((cwd) => compareWithEslint(fixture, cwd, comparison))),
+        Promise.all(baseDirectories.map((cwd) => compareWithCspell(fixture, cwd, comparison))),
+      ]);
 
       expect(eslintMismatches.flat()).toStrictEqual([]);
+      expect(cspellMismatches.flat()).toStrictEqual([]);
 
       fixture.git(['config', 'core.ignoreCase', 'true']);
+      const caseInsensitiveComparison = compareWithGit(
+        fixture,
+        readGitignoreSync({cwd: fixture.root, env: fixture.env}),
+      );
 
-      expect(
-        compareWithGit(fixture, readGitignoreSync({cwd: fixture.root, env: fixture.env}))
-          .mismatches,
-      ).toStrictEqual([]);
+      expect(caseInsensitiveComparison.mismatches).toStrictEqual([]);
+      await expect(
+        compareWithCspell(fixture, fixture.root, caseInsensitiveComparison),
+      ).resolves.toStrictEqual([]);
     },
     TEMPLATE_TIMEOUT_MS,
   );
@@ -264,6 +272,7 @@ describe.runIf(TEMPLATES_DIRECTORY != null)('github/gitignore templates', () => 
       expect(comparison.entries.length).toBeGreaterThan(10_000);
       expect(comparison.mismatches).toStrictEqual([]);
       await expect(compareWithEslint(fixture, fixture.root, comparison)).resolves.toStrictEqual([]);
+      await expect(compareWithCspell(fixture, fixture.root, comparison)).resolves.toStrictEqual([]);
     },
     ALL_TEMPLATES_TIMEOUT_MS,
   );

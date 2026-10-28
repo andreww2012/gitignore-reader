@@ -1,7 +1,7 @@
 {
   "name": "gitignore-reader-x",
   "version": "0.0.1",
-  "description": "Reads gitignore rules the way git does: from every source, with exact semantics. Gives a fast matcher and patterns for ESLint's ignores",
+  "description": "Reads gitignore rules the way git does: from every source, with exact semantics. Gives a fast matcher and patterns for ESLint and cspell",
   "keywords": [
     "gitignore",
     "git",
@@ -10,6 +10,7 @@
     "excludesfile",
     "gitmodules",
     "eslint",
+    "cspell",
     "glob",
     "matcher",
     "check-ignore"

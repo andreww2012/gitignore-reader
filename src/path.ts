@@ -6,6 +6,8 @@ import {toForwardSlashes} from 'utilery/path';
 import {isPathInside} from 'utilery/server';
 import {substringBeforeLast} from 'utilery/string';
 
+export const DOT_GIT = '.git';
+
 export const toPath = (value: string | URL) =>
   typeof value === 'string' ? value : fileURLToPath(value);
 

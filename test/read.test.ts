@@ -8,7 +8,14 @@ import {
   readGitignore,
   readGitignoreSync,
 } from '../src/index.ts';
-import {type Fixture, createFixture, gitCheckIgnore, symlinkOrSkip} from './utils.ts';
+import {
+  type Fixture,
+  compareWithCspell,
+  compareWithGit,
+  createFixture,
+  gitCheckIgnore,
+  symlinkOrSkip,
+} from './utils.ts';
 
 describe('sources', () => {
   it('reads every source in the order of precedence', async () => {
@@ -663,6 +670,99 @@ describe('toEslintIgnores', () => {
       // Anchored because of the slash
       '?x',
     ]);
+  });
+});
+
+describe('toCspellIgnorePaths', () => {
+  it('lists the ignored paths, but not the contents of ignored directories', () => {
+    const fixture = createFixture({
+      '.gitignore': 'dist/\n*.log\n.env*\n!.env.example\n',
+      '.env': '',
+      '.env.example': '',
+      'error.log': '',
+      dist: {'index.js': '', sub: {'a.log': ''}},
+      src: {'.gitignore': '/generated\n', generated: {'a.ts': ''}, 'debug.log': '', 'index.ts': ''},
+    });
+
+    expect(
+      readGitignoreSync({cwd: fixture.root, env: fixture.env}).toCspellIgnorePaths(),
+    ).toStrictEqual(['/.env', '/.git', '/dist', '/error.log', '/src/debug.log', '/src/generated']);
+  });
+
+  it('is relative to `cwd`, which may be ignored itself', () => {
+    const fixture = createFixture({
+      '.gitignore': '/packages/b/\n/packages/*/dist\n',
+      packages: {a: {dist: {}, 'x.js': ''}, b: {dist: {}, 'x.js': ''}},
+    });
+    const getIgnorePaths = (name: string) =>
+      readGitignoreSync({
+        cwd: path.join(fixture.root, 'packages', name),
+        env: fixture.env,
+      }).toCspellIgnorePaths();
+
+    expect(getIgnorePaths('a')).toStrictEqual(['/dist']);
+    expect(getIgnorePaths('b')).toStrictEqual(['/dist']);
+  });
+
+  it('lists submodules, nested repositories and `.git`', () => {
+    const fixture = createFixture({
+      '.gitmodules': '[submodule "lib"]\n\tpath = libs/lib\n\turl = ../lib.git\n',
+      libs: {lib: {'a.js': ''}},
+      cloned: {'.git': 'gitdir: ../elsewhere\n', 'a.js': ''},
+    });
+
+    expect(
+      readGitignoreSync({cwd: fixture.root, env: fixture.env}).toCspellIgnorePaths(),
+    ).toStrictEqual(['/.git', '/cloned', '/libs/lib']);
+  });
+
+  it('escapes what is special in picomatch or cspell', async () => {
+    const escapedNames: Readonly<Record<string, string>> = {
+      '!bang': '[!]bang',
+      '#hash': '[#]hash',
+      $x$$: '[$]x[$][$]',
+      '(group)': '[(]group[)]',
+      '[id]': '[[]id[]]',
+      'a #b': 'a[ ][#]b',
+      'a b': 'a[ ]b',
+      'x^^y': String.raw`x[\^][\^]y`,
+      '{a,b}': '[{]a,b[}]',
+      é: 'é',
+      // Not valid in file names on Windows
+      ...(process.platform !== 'win32' && {
+        '"q': '["]q',
+        'a||b': 'a[|][|]b',
+        [String.raw`a\b`]: String.raw`a[\\]b`,
+        'end ': 'end[ ]',
+        'q?*': 'q[?][*]',
+      }),
+    };
+    // The ignored files are next to the ones that are not, and in a directory that is not ignored
+    const files = Object.fromEntries(
+      Object.keys(escapedNames).flatMap((name) => [
+        [name, ''],
+        [`${name}.keep`, ''],
+      ]),
+    );
+    const fixture = createFixture({
+      '.gitignore': '*\n!*/\n!*.keep\n!.gitignore\n',
+      ...files,
+      '(dir) #1': files,
+    });
+    const gitignore = readGitignoreSync({cwd: fixture.root, env: fixture.env});
+
+    expect(gitignore.toCspellIgnorePaths().toSorted()).toStrictEqual(
+      [
+        '/.git',
+        ...Object.values(escapedNames).flatMap((escaped) => [
+          `/${escaped}`,
+          `/[(]dir[)][ ][#]1/${escaped}`,
+        ]),
+      ].toSorted(),
+    );
+    await expect(
+      compareWithCspell(fixture, fixture.root, compareWithGit(fixture, gitignore)),
+    ).resolves.toStrictEqual([]);
   });
 });
 

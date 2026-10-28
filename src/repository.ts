@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type {QuansyncGenerator} from 'quansync';
 import {getEntryTypes, readFiles, readFilesAndGetRealPaths} from './fs.ts';
-import {getAncestors} from './path.ts';
+import {DOT_GIT, getAncestors} from './path.ts';
 
 export interface GitRepository {
   /** The top-level directory of the working tree */
@@ -57,7 +57,7 @@ export function* discoverRepository(directory: string): QuansyncGenerator<{
   // The directory itself is checked together with the `.git` entries
   const [directoryType, ...types] = yield* getEntryTypes([
     directory,
-    ...ancestors.map((ancestor) => path.join(ancestor, '.git')),
+    ...ancestors.map((ancestor) => path.join(ancestor, DOT_GIT)),
   ]);
   const isDirectory = directoryType === 'directory';
   const index = types.findIndex((type) => type === 'directory' || type === 'file');
@@ -65,7 +65,7 @@ export function* discoverRepository(directory: string): QuansyncGenerator<{
   if (workTree == null) {
     return {isDirectory};
   }
-  const dotGitPath = path.join(workTree, '.git');
+  const dotGitPath = path.join(workTree, DOT_GIT);
   const gitDirectory = types[index] === 'file' ? yield* readGitFile(dotGitPath) : dotGitPath;
   if (gitDirectory == null) {
     return {isDirectory, repository: {workTree}};

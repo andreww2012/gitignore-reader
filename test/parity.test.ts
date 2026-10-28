@@ -1,5 +1,5 @@
 // Compares the results with git on random repositories: the matcher directly, and the patterns of
-// `toEslintIgnores` by letting ESLint apply them
+// `toEslintIgnores` and `toCspellIgnorePaths` by letting ESLint and cspell apply them
 import fs from 'node:fs';
 import path from 'node:path';
 import {mapTimes} from 'utilery/function';
@@ -7,6 +7,7 @@ import {readGitignoreSync} from '../src/index.ts';
 import {
   type FileTree,
   type Fixture,
+  compareWithCspell,
   compareWithEslint,
   compareWithGit,
   createFixture,
@@ -212,35 +213,40 @@ const runScenario = async (seed: number) => {
     readGitignoreSync({cwd: fixture.root, env: fixture.env, sources: {globalIgnoreFile: true}}),
   );
 
-  // The patterns are always case-sensitive
-  if (scenario.isCaseInsensitive) {
-    return {mismatches: comparison.mismatches, eslintMismatches: []};
-  }
-
-  // ESLint must ignore the same files with the patterns, from the root and from a subdirectory
+  // ESLint and cspell must ignore the same files with the patterns, from the root and from
+  // a subdirectory
   const isSubdirectoryIgnored = comparison.gitResults.some(
     (result, index) => result.ignored && comparison.entries[index]?.path === scenario.subdirectory,
   );
-  const eslintBaseDirectories = [
+  const baseDirectories = [
     fixture.root,
     ...(isSubdirectoryIgnored || scenario.subdirectory == null
       ? []
       : [path.join(fixture.root, scenario.subdirectory)]),
   ];
-  const eslintMismatches = await Promise.all(
-    eslintBaseDirectories.map((cwd) => compareWithEslint(fixture, cwd, comparison)),
-  );
-  return {mismatches: comparison.mismatches, eslintMismatches: eslintMismatches.flat()};
+  const [eslintMismatches, cspellMismatches] = await Promise.all([
+    // The ESLint patterns are always case-sensitive
+    scenario.isCaseInsensitive
+      ? []
+      : Promise.all(baseDirectories.map((cwd) => compareWithEslint(fixture, cwd, comparison))),
+    Promise.all(baseDirectories.map((cwd) => compareWithCspell(fixture, cwd, comparison))),
+  ]);
+  return {
+    mismatches: comparison.mismatches,
+    eslintMismatches: eslintMismatches.flat(),
+    cspellMismatches: cspellMismatches.flat(),
+  };
 };
 
 describe('parity with git', () => {
   it.each(mapTimes(RUN_COUNT, (index) => SEED + index))(
     'random repository, seed %i',
     async (seed) => {
-      const {mismatches, eslintMismatches} = await runScenario(seed);
+      const {mismatches, eslintMismatches, cspellMismatches} = await runScenario(seed);
 
       expect(mismatches).toStrictEqual([]);
       expect(eslintMismatches).toStrictEqual([]);
+      expect(cspellMismatches).toStrictEqual([]);
     },
   );
 });

@@ -1,4 +1,5 @@
 import type {CSpellSettings} from 'cspell';
+import {readGitignoreSync} from './src/index.ts';
 
 const GLOBALLY_IGNORED_WORDS: Readonly<Record<string, string[]>> = {
   names: ['andreww', 'quansync', 'utilery'],
@@ -19,11 +20,13 @@ const GLOBALLY_IGNORED_WORDS: Readonly<Record<string, string[]>> = {
 };
 
 export default {
-  useGitignore: true,
   enableGlobDot: true,
   ignorePaths: [
+    ...readGitignoreSync({
+      // eslint-disable-next-line node/no-unsupported-features/node-builtins -- only used in development, on recent Node.js versions
+      cwd: import.meta.dirname,
+    }).toCspellIgnorePaths(),
     '**/.gitignore',
-    '**/.git/**',
     '**/pnpm-lock.yaml',
     'patches/**',
     '.agents/guidelines.md',

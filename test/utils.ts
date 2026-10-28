@@ -2,9 +2,12 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {pathToFileURL} from 'node:url';
 import {isDeepStrictEqual} from 'node:util';
+import {lint as cspellLint} from 'cspell';
 import {ESLint} from 'eslint';
 import {arrayChunks} from 'utilery/array';
+import {withConcurrencyLimit} from 'utilery/async';
 import {toForwardSlashes} from 'utilery/path';
 import {isDirectorySync} from 'utilery/server';
 import {type Gitignore, readGitignoreSync} from '../src/index.ts';
@@ -12,6 +15,9 @@ import {type Gitignore, readGitignoreSync} from '../src/index.ts';
 // cspell:ignore SYSTEMROOT
 
 const collator = new Intl.Collator('en');
+
+// cspell runs that overlap mix up their roots, so they run one at a time
+const cspellLintOneAtATime = withConcurrencyLimit(cspellLint, 1);
 
 const NON_ASCII_REGEX = /\P{ASCII}/u;
 // They match a single byte in git, but a whole character in ESLint
@@ -239,4 +245,89 @@ export const compareWithEslint = async (
     }),
   );
   return results.flat();
+};
+
+/** Runs cspell in `cwd`, where its config is, and returns the files it checks */
+const findFilesCheckedByCspell = async (
+  fixture: Fixture,
+  cwd: string,
+  ignorePaths: readonly string[],
+) => {
+  const checkedPaths = new Set<string>();
+  const errors: string[] = [];
+  await cspellLintOneAtATime(
+    ['**'],
+    {
+      root: cwd,
+      config: {
+        url: pathToFileURL(path.join(cwd, 'cspell.json')),
+        settings: {
+          // cspell takes a path like `a:b` for a URL and fails to read the file
+          ignorePaths: [...ignorePaths, '**/*:*'],
+          enableGlobDot: true,
+        },
+      },
+      // Only the files it finds matter
+      skipValidation: true,
+    },
+    {
+      progress: (item) => {
+        if (item.type === 'ProgressFileComplete') {
+          checkedPaths.add(toForwardSlashes(path.relative(fixture.root, item.filename)));
+        }
+      },
+      error: (message) => {
+        errors.push(message);
+      },
+    },
+  );
+  if (errors.length > 0) {
+    throw new Error(errors.join('\n'));
+  }
+  return checkedPaths;
+};
+
+/**
+ * cspell must check the files that git doesn't ignore, and nothing in `.git`, with the patterns of
+ * `toCspellIgnorePaths` read for `cwd`.
+ * Returns the mismatches
+ */
+export const compareWithCspell = async (
+  fixture: Fixture,
+  cwd: string,
+  {entries, gitResults}: ReturnType<typeof compareWithGit>,
+) => {
+  const ignorePaths = readGitignoreSync({
+    cwd,
+    env: fixture.env,
+    sources: {globalIgnoreFile: true},
+  }).toCspellIgnorePaths();
+  // Without the patterns: cspell skips some files on its own, like the ones in `node_modules`
+  const [checkablePaths, checkedPaths] = await Promise.all([
+    findFilesCheckedByCspell(fixture, cwd, []),
+    findFilesCheckedByCspell(fixture, cwd, ignorePaths),
+  ]);
+  const cwdPrefix = toForwardSlashes(path.relative(fixture.root, cwd));
+  return [
+    ...entries.flatMap((entry, index) => {
+      if (!checkablePaths.has(entry.path)) {
+        return [];
+      }
+      const expected = gitResults[index]?.ignored;
+      const isIgnoredByCspell = !checkedPaths.has(entry.path);
+      return isIgnoredByCspell === expected
+        ? []
+        : {path: entry.path, cwd: cwdPrefix, ignorePaths, expected, actual: isIgnoredByCspell};
+    }),
+    // The entries leave out `.git`
+    ...[...checkedPaths]
+      .filter((checkedPath) => checkedPath.split('/').includes('.git'))
+      .map((checkedPath) => ({
+        path: checkedPath,
+        cwd: cwdPrefix,
+        ignorePaths,
+        expected: true,
+        actual: false,
+      })),
+  ];
 };
