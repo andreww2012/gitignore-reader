@@ -1,7 +1,10 @@
 import path from 'node:path';
-import {mapGetOrInsert, mapGetOrInsertComputed} from '@andreww2012/unutils/map';
+import {once} from 'utilery/function';
+import {mapGetOrInsert, mapGetOrInsertComputed} from 'utilery/map';
+import {isPathInside} from 'utilery/server';
+import {ensureSuffix, substringAfterLast} from 'utilery/string';
 import {toEslintIgnores} from './eslint-ignores.ts';
-import {getParentDirectory, getPathInDirectory, isPathInside, toPath, toPosixPath} from './path.ts';
+import {getParentDirectory, getPathInDirectory, toPath, toPosixPath} from './path.ts';
 import {
   type CompiledRule,
   type GitignoreRule,
@@ -232,7 +235,7 @@ export const createGitignoreBuilder = ({
         return separateRepository;
       }
     }
-    const basename = key.slice(key.lastIndexOf('/') + 1);
+    const basename = substringAfterLast(key, '/');
     const dotIndex = basename.lastIndexOf('.');
     const extension = dotIndex === -1 ? undefined : basename.slice(dotIndex);
     const sources = getApplicableSources(getParentDirectory(key));
@@ -267,7 +270,7 @@ export const createGitignoreBuilder = ({
     return match ? {match, matchedLength: key.length} : undefined;
   };
 
-  const basePrefix = base.endsWith(path.sep) ? base : `${base}${path.sep}`;
+  const basePrefix = ensureSuffix(base, path.sep);
   const cwdDirectory = toPosixPath(path.relative(base, cwd));
   const cwdPrefix = cwdDirectory.length === 0 ? '' : `${cwdDirectory}/`;
 
@@ -285,8 +288,9 @@ export const createGitignoreBuilder = ({
       return `${cwdPrefix}${toPosixPath(trimmedPath)}`;
     }
     const absolutePath = path.resolve(cwd, inputPath);
-    const relativePath = toPosixPath(path.relative(base, absolutePath));
-    return isPathInside(absolutePath, base) && relativePath.length > 0 ? relativePath : undefined;
+    return isPathInside(absolutePath, base)
+      ? toPosixPath(path.relative(base, absolutePath))
+      : undefined;
   };
 
   /** Also returns the relative path as a byte string, to report the matched path */
@@ -306,7 +310,9 @@ export const createGitignoreBuilder = ({
 
   const getSources = () => [...fileSources, ...separateRepositorySources.values()];
 
-  let eslintIgnores: string[] | undefined;
+  const getEslintIgnores = once(() =>
+    toEslintIgnores(getSources(), toByteString(cwdDirectory), isCaseInsensitive),
+  );
 
   return {
     /** Adds the rules of a file, `directory` is the relative path of the file's directory */
@@ -402,14 +408,7 @@ export const createGitignoreBuilder = ({
           ),
         };
       },
-      toEslintIgnores: () => {
-        eslintIgnores ||= toEslintIgnores(
-          getSources(),
-          toByteString(cwdDirectory),
-          isCaseInsensitive,
-        );
-        return [...eslintIgnores];
-      },
+      toEslintIgnores: () => [...getEslintIgnores()],
     }),
   };
 };

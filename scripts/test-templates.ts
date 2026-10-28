@@ -2,6 +2,7 @@
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {attempt} from 'utilery/function';
 
 const REPOSITORY_URL = 'https://github.com/github/gitignore.git';
 const COMMIT = '0e5d690153ca3da8a4a1aef2d053406f408f531c';
@@ -11,19 +12,12 @@ const git = (gitArguments: readonly string[]) =>
   // eslint-disable-next-line sonar/no-os-command-from-path -- the installed git is needed
   execFileSync('git', gitArguments, {cwd: DIRECTORY, encoding: 'utf8'}).trim();
 
-const getHead = () => {
-  try {
-    return git(['rev-parse', 'HEAD']);
-  } catch {
-    return undefined;
-  }
-};
-
 fs.mkdirSync(DIRECTORY, {recursive: true});
 if (!fs.existsSync(path.join(DIRECTORY, '.git'))) {
   git(['init', '--quiet']);
 }
-if (getHead() !== COMMIT) {
+const [, head] = attempt(() => git(['rev-parse', 'HEAD']));
+if (head !== COMMIT) {
   git(['fetch', '--quiet', '--depth', '1', REPOSITORY_URL, COMMIT]);
   git(['checkout', '--quiet', '--force', 'FETCH_HEAD']);
 }

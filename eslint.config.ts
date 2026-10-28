@@ -25,7 +25,7 @@ export default eslintConfig({
       extraneousDependenciesCheck: (defaultIgnorePatterns) => ({
         checkDevDependencies: {ignorePatterns: [...defaultIgnorePatterns, 'test/**']},
         // Bundled by tsdown
-        whitelist: ['@andreww2012/unutils'],
+        whitelist: ['utilery'],
       }),
     },
     jsdoc: {

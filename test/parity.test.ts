@@ -2,6 +2,7 @@
 // `toEslintIgnores` by letting ESLint apply them
 import fs from 'node:fs';
 import path from 'node:path';
+import {mapTimes} from 'utilery/function';
 import {readGitignoreSync} from '../src/index.ts';
 import {
   type FileTree,
@@ -129,7 +130,7 @@ const toGitignoreLiteral = (name: string) =>
 
 const createPattern = (random: Random) => {
   const segmentCount = 1 + Math.floor(random() * 4);
-  const segments = Array.from({length: segmentCount}, () =>
+  const segments = mapTimes(segmentCount, () =>
     random() < 0.55 ? toGitignoreLiteral(pick(random, NAMES)) : pick(random, WILDCARD_SEGMENTS),
   );
   return [
@@ -143,7 +144,7 @@ const createPattern = (random: Random) => {
 
 const createIgnoreFile = (random: Random) =>
   [
-    ...Array.from({length: 1 + Math.floor(random() * 6)}, () => createPattern(random)),
+    ...mapTimes(1 + Math.floor(random() * 6), () => createPattern(random)),
     random() < 0.3 ? '# comment' : '',
   ].join(random() < 0.2 ? '\r\n' : '\n') + (random() < 0.1 ? '\r' : '');
 
@@ -233,7 +234,7 @@ const runScenario = async (seed: number) => {
 };
 
 describe('parity with git', () => {
-  it.each(Array.from({length: RUN_COUNT}, (_, index) => SEED + index))(
+  it.each(mapTimes(RUN_COUNT, (index) => SEED + index))(
     'random repository, seed %i',
     async (seed) => {
       const {mismatches, eslintMismatches} = await runScenario(seed);

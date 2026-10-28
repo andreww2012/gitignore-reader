@@ -6,7 +6,7 @@ export default defineConfig({
   exports: true,
   deps: {
     // A dev dependency: only the few functions in use end up in the bundle
-    onlyBundle: ['@andreww2012/unutils'],
+    onlyBundle: ['utilery'],
     onlyImport: ['quansync'],
   },
   // The docs are in the declarations, and the bundled functions have long ones

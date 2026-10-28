@@ -2,6 +2,9 @@
 // Opt-in, since it needs a clone of that repository: run `pnpm test:templates`
 import fs from 'node:fs';
 import path from 'node:path';
+import {arrayWithoutFalsy} from 'utilery/array';
+import {mapTimes} from 'utilery/function';
+import {toForwardSlashes} from 'utilery/path';
 import {readGitignoreSync} from '../src/index.ts';
 import {compareWithEslint, compareWithGit, createFixture} from './utils.ts';
 
@@ -50,7 +53,7 @@ const listTemplates = (directory: string) =>
     .readdirSync(directory, {recursive: true, withFileTypes: true})
     .filter((entry) => entry.isFile() && entry.name.endsWith('.gitignore'))
     .map((entry) =>
-      path.relative(directory, path.join(entry.parentPath, entry.name)).replaceAll('\\', '/'),
+      toForwardSlashes(path.relative(directory, path.join(entry.parentPath, entry.name))),
     )
     .toSorted();
 
@@ -110,10 +113,10 @@ const createCandidatePaths = (rule: string): CandidatePath[] => {
       .split('/')
       .flatMap((segment) =>
         GLOBSTAR_REGEX.test(segment)
-          ? Array.from({length: variant}, (_, index) => `g${index}`)
+          ? mapTimes(variant, (index) => `g${index}`)
           : instantiateSegment(segment, variant),
       );
-    const prefix = isAnchored ? [] : NESTING_PREFIXES[variant]?.split('/').filter(Boolean) || [];
+    const prefix = isAnchored ? [] : arrayWithoutFalsy(NESTING_PREFIXES[variant]?.split('/') || []);
     const matching = [...prefix, ...segments];
     const lastName = matching.at(-1) || 'e';
     const caseToggled = toggleFirstLetterCase(lastName);

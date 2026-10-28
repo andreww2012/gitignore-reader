@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import {type QuansyncGenerator, quansync} from 'quansync';
+import {arrayChunks} from 'utilery/array';
 
 interface FileToRead {
   path: string;
@@ -134,15 +135,8 @@ export const readFilesAndGetRealPaths = quansync({
 export function* readFileGroups(
   groups: readonly (readonly FileToRead[])[],
 ): QuansyncGenerator<(string | undefined)[][]> {
-  const contents = yield* readFiles(groups.flat());
-  return groups.reduce<{offset: number; result: (string | undefined)[][]}>(
-    (accumulator, group) => {
-      accumulator.result.push(
-        contents.slice(accumulator.offset, accumulator.offset + group.length),
-      );
-      accumulator.offset += group.length;
-      return accumulator;
-    },
-    {offset: 0, result: []},
-  ).result;
+  return arrayChunks(
+    yield* readFiles(groups.flat()),
+    groups.map((group) => group.length),
+  );
 }

@@ -1,3 +1,4 @@
+import {substringAfterLast} from 'utilery/string';
 import {compileGitignore, toByteString} from '../src/pattern.ts';
 
 const parseGitignore = (content: string) =>
@@ -6,7 +7,7 @@ const parseGitignore = (content: string) =>
 const isMatching = (pattern: string, relativePath: string, isCaseInsensitive = false) => {
   const [compiled] = compileGitignore(pattern, isCaseInsensitive);
   const pathBytes = toByteString(relativePath);
-  return compiled?.isMatch(pathBytes, pathBytes.slice(pathBytes.lastIndexOf('/') + 1));
+  return compiled?.isMatch(pathBytes, substringAfterLast(pathBytes, '/'));
 };
 
 describe('parsing', () => {

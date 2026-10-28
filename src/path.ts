@@ -2,22 +2,18 @@
 // or the filesystem root), POSIX-style, and an empty one stands for the base directory itself
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {toForwardSlashes} from 'utilery/path';
+import {isPathInside} from 'utilery/server';
+import {substringBeforeLast} from 'utilery/string';
 
 export const toPath = (value: string | URL) =>
   typeof value === 'string' ? value : fileURLToPath(value);
 
-export const toPosixPath = (value: string) =>
-  path.sep === '\\' ? value.replaceAll('\\', '/') : value;
+export const toPosixPath = (value: string) => (path.sep === '\\' ? toForwardSlashes(value) : value);
 
-/** For native paths, also returns `true` for the same path */
-export const isPathInside = (child: string, parent: string) => {
-  const relativePath = path.relative(parent, child);
-  return (
-    relativePath !== '..' &&
-    !relativePath.startsWith(`..${path.sep}`) &&
-    !path.isAbsolute(relativePath)
-  );
-};
+/** For native paths */
+export const isPathInsideOrSame = (child: string, parent: string) =>
+  path.relative(parent, child).length === 0 || isPathInside(child, parent);
 
 /** The directory and its parents, starting from the directory */
 export const getAncestors = (directory: string) => {
@@ -45,4 +41,4 @@ export const joinRelativePath = (directory: string, name: string) =>
 
 /** For relative paths, returns an empty string for a top-level one */
 export const getParentDirectory = (relativePath: string) =>
-  relativePath.slice(0, Math.max(0, relativePath.lastIndexOf('/')));
+  substringBeforeLast(relativePath, '/', '');

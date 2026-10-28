@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {toForwardSlashes} from 'utilery/path';
 import {type ReadGitignoreOptions, readGitignore, readGitignoreSync} from '../src/index.ts';
 import {type Fixture, createFixture, gitCheckIgnore, symlinkOrSkip} from './utils.ts';
 
@@ -220,7 +221,7 @@ describe('global excludes file', () => {
         '[includeIf "gitdir:~/elsewhere/"]',
         '  path = ~/never.gitconfig',
         // Backslashes would be dropped in a quoted subsection
-        `[includeIf "gitdir/i:${path.dirname(fixture.root).replaceAll('\\', '/').toUpperCase()}/"]`,
+        `[includeIf "gitdir/i:${toForwardSlashes(path.dirname(fixture.root)).toUpperCase()}/"]`,
         '  path = ~/conditional.gitconfig',
       ].join('\n'),
     );
@@ -812,7 +813,7 @@ describe('includeIf "gitdir:"', () => {
     fs.writeFileSync(
       fixture.env.GIT_CONFIG_GLOBAL,
       // Backslashes would be dropped in a quoted subsection
-      `[includeIf "gitdir:${fixture.root.replaceAll('\\', '/')}/"]\npath = included.gitconfig\n`,
+      `[includeIf "gitdir:${toForwardSlashes(fixture.root)}/"]\npath = included.gitconfig\n`,
     );
     fs.writeFileSync(path.join(fixture.home, 'included.gitconfig'), '[core]\nexcludesFile = ~/x\n');
     fs.writeFileSync(path.join(fixture.home, 'x'), '*.log\n');

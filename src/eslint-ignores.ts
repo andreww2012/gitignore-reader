@@ -1,5 +1,6 @@
 // Conversion of the rules into patterns for ESLint's `ignores`, which it matches with minimatch.
 // Paths and tokens are byte strings here (see `toByteString`), the patterns are decoded at the end
+import {arrayUnique} from 'utilery/array';
 import {getPathInDirectory, isInsideDirectory} from './path.ts';
 import {
   type ClassRange,
@@ -196,10 +197,7 @@ const ruleToEslintIgnores = (
   });
 
 /** Keeps the last occurrence of each glob: the earlier ones can't change the outcome */
-const removeDuplicates = (globs: readonly string[]) => {
-  const lastIndexes = new Map(globs.map((glob, index) => [glob, index]));
-  return globs.filter((glob, index) => lastIndexes.get(glob) === index);
-};
+const removeDuplicates = (globs: readonly string[]) => arrayUnique(globs.toReversed()).toReversed();
 
 /**
  * Converts the rules of the sources (in the order of increasing precedence) into patterns relative

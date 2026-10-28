@@ -2,6 +2,7 @@
 // including `include.path` and `includeIf` (`gitdir:`, `gitdir/i:` and `onbranch:` conditions)
 import path from 'node:path';
 import type {QuansyncGenerator} from 'quansync';
+import {mapTimes} from 'utilery/function';
 import {getRealPaths, readFiles} from './fs.ts';
 import {toPosixPath} from './path.ts';
 import {createConditionMatcher, normalizeCase} from './pattern.ts';
@@ -372,7 +373,7 @@ export function* expandGitConfigFiles(
 
 /** `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_VALUE_<n>` */
 export const getEnvironmentConfig = (env: Env) =>
-  Array.from({length: Number(env.GIT_CONFIG_COUNT) || 0}, (_, index): ConfigEntry[] => {
+  mapTimes(Number(env.GIT_CONFIG_COUNT) || 0, (index): ConfigEntry[] => {
     const name = env[`GIT_CONFIG_KEY_${index}`];
     const value = env[`GIT_CONFIG_VALUE_${index}`];
     const firstDotIndex = name?.indexOf('.') ?? -1;

@@ -3,8 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {isDeepStrictEqual} from 'node:util';
-import {arrayChunks} from '@andreww2012/unutils/array';
 import {ESLint} from 'eslint';
+import {arrayChunks} from 'utilery/array';
+import {toForwardSlashes} from 'utilery/path';
+import {isDirectorySync} from 'utilery/server';
 import {type Gitignore, readGitignoreSync} from '../src/index.ts';
 
 // cspell:ignore SYSTEMROOT
@@ -22,8 +24,7 @@ export const symlinkOrSkip = (
   context: {skip: (note: string) => void},
 ) => {
   try {
-    const isDirectory = fs.statSync(target, {throwIfNoEntry: false})?.isDirectory();
-    fs.symlinkSync(target, link, isDirectory ? 'junction' : 'file');
+    fs.symlinkSync(target, link, isDirectorySync(target) ? 'junction' : 'file');
   } catch {
     context.skip('Symlinks are not available');
   }
@@ -161,9 +162,9 @@ const listTree = (directory: string) =>
   fs
     .readdirSync(directory, {recursive: true, withFileTypes: true})
     .flatMap((entry) => {
-      const relativePath = path
-        .relative(directory, path.join(entry.parentPath, entry.name))
-        .replaceAll('\\', '/');
+      const relativePath = toForwardSlashes(
+        path.relative(directory, path.join(entry.parentPath, entry.name)),
+      );
       return relativePath.split('/').includes('.git')
         ? []
         : {path: relativePath, isDirectory: entry.isDirectory()};
@@ -218,7 +219,7 @@ export const compareWithEslint = async (
     // Files matched only by patterns ending with `/*` are not linted
     overrideConfig: [{files: ['**/?*']}, {ignores}],
   });
-  const cwdPrefix = path.relative(fixture.root, cwd).replaceAll('\\', '/');
+  const cwdPrefix = toForwardSlashes(path.relative(fixture.root, cwd));
   const results = await Promise.all(
     entries.map(async (entry, index) => {
       const isChecked =

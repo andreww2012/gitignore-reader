@@ -1,8 +1,8 @@
 import os from 'node:os';
 import path from 'node:path';
-import {arrayTakeWhile} from '@andreww2012/unutils/array';
-import {keyedBy} from '@andreww2012/unutils/iterable';
 import {type QuansyncGenerator, quansync} from 'quansync';
+import {arrayDifference, arrayTakeWhile, arrayUnique, arrayWithoutFalsy} from 'utilery/array';
+import {keyedBy} from 'utilery/iterable';
 import {readDirectories, readFileGroups, readFiles} from './fs.ts';
 import {
   type ConfigEntry,
@@ -16,7 +16,7 @@ import {
   resolveConfigPath,
 } from './git-config.ts';
 import {type Gitignore, createGitignoreBuilder} from './gitignore.ts';
-import {getAncestors, isPathInside, joinRelativePath, toPath, toPosixPath} from './path.ts';
+import {getAncestors, isPathInsideOrSame, joinRelativePath, toPath, toPosixPath} from './path.ts';
 import {type GitRepository, discoverRepository} from './repository.ts';
 
 /** Which sources of the rules to read, and how */
@@ -177,11 +177,11 @@ const getConfigPaths = (repository: GitRepository, {env, home, xdgConfigHome}: G
       ? [path.join(xdgConfigHome, 'git', 'config'), path.join(home, '.gitconfig')]
       : [env.GIT_CONFIG_GLOBAL];
   return {
-    main: [
+    main: arrayWithoutFalsy([
       ...(isTruthyGitValue(env.GIT_CONFIG_NOSYSTEM) ? [] : systemPaths),
       ...globalPaths,
-      ...(repository.commonDirectory ? [path.join(repository.commonDirectory, 'config')] : []),
-    ].filter((configPath) => configPath.length > 0),
+      repository.commonDirectory && path.join(repository.commonDirectory, 'config'),
+    ]),
     ...(repository.gitDirectory != null && {
       worktree: path.join(repository.gitDirectory, 'config.worktree'),
     }),
@@ -333,18 +333,18 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
   const base = repository?.workTree || path.parse(cwd).root;
 
   const root = options.root == null ? undefined : path.resolve(cwd, toPath(options.root));
-  if (root != null && !isPathInside(cwd, root)) {
+  if (root != null && !isPathInsideOrSame(cwd, root)) {
     throw new Error(`\`cwd\` (${cwd}) must be inside \`root\` (${root})`);
   }
-  const top = root != null && isPathInside(root, base) ? root : base;
+  const top = root != null && isPathInsideOrSame(root, base) ? root : base;
 
   // From `top` down to `cwd`
   const searchedAncestors = arrayTakeWhile(getAncestors(cwd), (ancestor) =>
-    isPathInside(ancestor, top),
+    isPathInsideOrSame(ancestor, top),
   ).toReversed();
 
-  const extraFilePaths = [...new Set(files.map((file) => path.resolve(cwd, toPath(file))))].filter(
-    (filePath) => isPathInside(filePath, top),
+  const extraFilePaths = arrayUnique(files.map((file) => path.resolve(cwd, toPath(file)))).filter(
+    (filePath) => isPathInsideOrSame(filePath, top),
   );
   const extraFilesByDirectory = Map.groupBy(extraFilePaths, (filePath) => path.dirname(filePath));
   // To read the files from `files` in the other directories after the search
@@ -356,9 +356,10 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
     const namedFiles = fileNames
       .filter(hasFile)
       .map((name) => ({path: path.join(directoryPath, name), followSymlinks: false}));
-    const extraFiles = (extraFilesByDirectory.get(directoryPath) || [])
-      .filter((filePath) => namedFiles.every((file) => file.path !== filePath))
-      .map((filePath) => ({path: filePath, followSymlinks: true}));
+    const extraFiles = arrayDifference(
+      extraFilesByDirectory.get(directoryPath) || [],
+      namedFiles.map((file) => file.path),
+    ).map((filePath) => ({path: filePath, followSymlinks: true}));
     return [...namedFiles, ...extraFiles];
   };
 
@@ -419,8 +420,8 @@ function* readGitignoreGenerator(options: ReadGitignoreOptions = {}): QuansyncGe
           gitEnvironment,
           {
             // Git tries the real path first
-            gitDirectories: [...new Set([realGitDirectory, repository.gitDirectory])].filter(
-              (gitDirectory) => gitDirectory != null,
+            gitDirectories: arrayUnique(
+              arrayWithoutFalsy([realGitDirectory, repository.gitDirectory]),
             ),
             ...(head != null && {head}),
           },
